@@ -1,74 +1,14 @@
 import { useState } from 'react'
 import './App.css'
 import type { GameState, Die, ScoringCategory, Player } from './types'
+import { LocalGameEngine } from './game/LocalGameEngine'
+import { getPotentialScore, getUpperTotal, getUpperBonus, getLowerTotal, getTotalScore, isCategoryUsed } from './game/gameLogic'
 
-// Initialize a new die
-const createDie = (): Die => ({
-  value: Math.floor(Math.random() * 6) + 1,
-  isHeld: false
-});
 
-// Initialize a new player
-const createPlayer = (id: number, name: string): Player => ({
-  id,
-  name,
-  scoreCard: {},
-  isActive: true
-});
-
-// Initialize the game state
-const initializeGame = (playerCount: number): GameState => ({
-  dice: Array.from({ length: 5 }, createDie),
-  rollsLeft: 3,
-  players: Array.from({ length: playerCount }, (_, i) => createPlayer(i + 1, `Player ${i + 1}`)),
-  currentPlayerIndex: 0,
-  currentTurn: 1,
-  gameComplete: false,
-  gameStarted: false
-});
-
-// Scoring functions
-const calculateScore = (dice: Die[], category: ScoringCategory): number => {
-  const values = dice.map(d => d.value);
-  const counts = new Array(7).fill(0);
-  values.forEach(v => counts[v]++);
-
-  switch (category) {
-    // Upper section
-    case 'ones': return values.filter(v => v === 1).length * 1;
-    case 'twos': return values.filter(v => v === 2).length * 2;
-    case 'threes': return values.filter(v => v === 3).length * 3;
-    case 'fours': return values.filter(v => v === 4).length * 4;
-    case 'fives': return values.filter(v => v === 5).length * 5;
-    case 'sixes': return values.filter(v => v === 6).length * 6;
-    
-    // Lower section
-    case 'threeOfAKind': return counts.some(c => c >= 3) ? values.reduce((a, b) => a + b, 0) : 0;
-    case 'fourOfAKind': return counts.some(c => c >= 4) ? values.reduce((a, b) => a + b, 0) : 0;
-    case 'fullHouse': {
-      const hasThree = counts.some(c => c === 3);
-      const hasTwo = counts.some(c => c === 2);
-      return (hasThree && hasTwo) ? 25 : 0;
-    }
-    case 'smallStraight': {
-      const sorted = [...new Set(values)].sort();
-      for (let i = 0; i <= sorted.length - 4; i++) {
-        if (sorted[i+3] - sorted[i] === 3) return 30;
-      }
-      return 0;
-    }
-    case 'largeStraight': {
-      const sorted = [...new Set(values)].sort();
-      return (sorted.length === 5 && sorted[4] - sorted[0] === 4) ? 40 : 0;
-    }
-    case 'yahtzee': return counts.some(c => c === 5) ? 50 : 0;
-    case 'chance': return values.reduce((a, b) => a + b, 0);
-    default: return 0;
-  }
-};
 
 function App() {
-  const [gameState, setGameState] = useState<GameState>(initializeGame(1));
+  const [gameEngine] = useState(() => new LocalGameEngine());
+  const [gameState, setGameState] = useState<GameState>(gameEngine.getState());
   const [playerCount, setPlayerCount] = useState(1);
   const [playerNames, setPlayerNames] = useState(['Player 1']);
   const [isRolling, setIsRolling] = useState(false);
@@ -77,19 +17,8 @@ function App() {
 
   // Start the game
   const startGame = () => {
-    const players = Array.from({ length: playerCount }, (_, i) => 
-      createPlayer(i + 1, playerNames[i] || `Player ${i + 1}`)
-    );
-    
-    setGameState(prev => ({
-      ...prev,
-      players,
-      gameStarted: true,
-      currentPlayerIndex: 0,
-      currentTurn: 1,
-      rollsLeft: 3,
-      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
-    }));
+    const newState = gameEngine.startGame(playerCount, playerNames);
+    setGameState(newState);
     
     // Reset rolling state
     setIsRolling(false);
@@ -134,14 +63,9 @@ function App() {
           setIsRolling(false);
           setRollingDice([]);
           
-          // Set final random values (or forced Yahtzee)
-          setGameState(prev => ({
-            ...prev,
-            dice: prev.dice.map(die => 
-              die.isHeld ? die : { ...die, value: forceYahtzee ? 2 : Math.floor(Math.random() * 6) + 1 }
-            ),
-            rollsLeft: prev.rollsLeft - 1
-          }));
+          // Use the engine to roll dice
+          const newState = gameEngine.rollDice();
+          setGameState(newState);
         }
       }, interval);
     }
@@ -149,12 +73,8 @@ function App() {
 
   // Toggle whether a die is held
   const toggleDieHold = (index: number) => {
-    setGameState(prev => ({
-      ...prev,
-      dice: prev.dice.map((die, i) => 
-        i === index ? { ...die, isHeld: !die.isHeld } : die
-      )
-    }));
+    const newState = gameEngine.toggleDieHold(index);
+    setGameState(newState);
   };
 
   // Check if current dice form a Yahtzee
@@ -191,215 +111,17 @@ function App() {
 
   // Score a category for current player
   const scoreCategory = (category: ScoringCategory) => {
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const hasYahtzee = isYahtzee(gameState.dice);
-    const yahtzeeAlreadyScored = currentPlayer.scoreCard.yahtzee !== undefined;
+    const newState = gameEngine.scoreCategory(category);
+    setGameState(newState);
     
-    let score = calculateScore(gameState.dice, category);
-    let yahtzeeBonus = currentPlayer.scoreCard.yahtzeeBonus || 0;
-    
-    // Handle Yahtzee bonus and joker rules
-    if (hasYahtzee && yahtzeeAlreadyScored) {
-      // This is a subsequent Yahtzee (joker)
-      
-      
-      // Check if this is a valid category for joker scoring with proper priority
-      const upperCategory = `${gameState.dice[0].value === 1 ? 'ones' : gameState.dice[0].value === 2 ? 'twos' : gameState.dice[0].value === 3 ? 'threes' : gameState.dice[0].value === 4 ? 'fours' : gameState.dice[0].value === 5 ? 'fives' : 'sixes'}` as ScoringCategory;
-      
-      // Priority 1: Upper Section if available
-      if (isCategoryAvailable(currentPlayer, upperCategory)) {
-        if (category !== upperCategory) {
-          console.warn(`Joker Yahtzee must be scored in Upper Section ${upperCategory}, not ${category}`);
-          return; // Don't allow scoring in wrong category
-        }
-      } else {
-        // Priority 2: Lower Section categories only if Upper Section is filled
-        // First priority: 3-of-a-Kind or 4-of-a-Kind (if either is available)
-        const threeOfAKindAvailable = isCategoryAvailable(currentPlayer, 'threeOfAKind');
-        const fourOfAKindAvailable = isCategoryAvailable(currentPlayer, 'fourOfAKind');
-        
-        if (threeOfAKindAvailable || fourOfAKindAvailable) {
-          // Only allow 3-of-a-Kind or 4-of-a-Kind
-          const isValidJokerCategory = (category === 'threeOfAKind' && threeOfAKindAvailable) || 
-                                       (category === 'fourOfAKind' && fourOfAKindAvailable);
-          
-          if (!isValidJokerCategory) {
-            console.warn(`Joker Yahtzee must be scored in 3-of-a-Kind or 4-of-a-Kind when available, not ${category}`);
-            return; // Don't allow scoring in wrong category
-          }
-        } else {
-          // If neither 3-of-a-Kind nor 4-of-a-Kind is available, then allow other Lower Section categories
-          const validJokerCategories = ['fullHouse', 'smallStraight', 'largeStraight', 'chance'];
-          const isValidJokerCategory = validJokerCategories.includes(category) && isCategoryAvailable(currentPlayer, category);
-          
-          if (!isValidJokerCategory) {
-            // If no Lower Section categories are available, allow Upper Section categories (except the dice value category)
-            const upperCategories = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes'];
-            const isValidUpperCategory = upperCategories.includes(category) && 
-                                        isCategoryAvailable(currentPlayer, category) && 
-                                        category !== upperCategory;
-            
-            if (!isValidUpperCategory) {
-              console.warn(`Invalid category for joker Yahtzee: ${category}`);
-              return; // Don't allow scoring in invalid category
-            }
-          }
-        }
-      }
-      
-      // Score the appropriate value in the chosen category
-      if (category === 'fullHouse') {
-        score = 25; // Full House is always worth 25
-      } else if (category === 'smallStraight') {
-        score = 30; // Small Straight is always worth 30
-      } else if (category === 'largeStraight') {
-        score = 40; // Large Straight is always worth 40
-      } else if (category === 'ones' || category === 'twos' || category === 'threes' || category === 'fours' || category === 'fives' || category === 'sixes') {
-        // Check if this is the required Upper Section category (priority 1) or fallback (priority 4)
-        if (category === upperCategory) {
-          score = getDiceTotal(gameState.dice); // Required Upper Section gets dice total
-        } else {
-          score = 0; // Fallback Upper Section gets zero
-        }
-      } else {
-        score = getDiceTotal(gameState.dice); // 3-of-a-Kind, 4-of-a-Kind, and Chance use dice total
-      }
-      
-      // Add bonus if original Yahtzee was scored with points
-      if ((currentPlayer.scoreCard.yahtzee ?? 0) > 0) {
-        yahtzeeBonus += 100;
-      }
-      // Note: If original Yahtzee was scored as zero, no bonus is given
-    } else if (category === 'yahtzee') {
-      // This is the first Yahtzee being scored
-      score = hasYahtzee ? 50 : 0;
-    }
-    
-    // Update player's score card
-    const updatedPlayer = {
-      ...currentPlayer,
-      scoreCard: {
-        ...currentPlayer.scoreCard,
-        [category]: score,
-        yahtzeeBonus: yahtzeeBonus
-      }
-    };
-
-    // Determine next player
-    const nextPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-    const nextTurn = nextPlayerIndex === 0 ? gameState.currentTurn + 1 : gameState.currentTurn;
-    const gameComplete = nextTurn > 13;
-
-    setGameState(prev => ({
-      ...prev,
-      players: prev.players.map((player, i) => 
-        i === gameState.currentPlayerIndex ? updatedPlayer : player
-      ),
-      currentPlayerIndex: nextPlayerIndex,
-      currentTurn: nextTurn,
-      rollsLeft: 3,
-      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false })),
-      gameComplete
-    }));
-    
-    // Reset rolling state for new turn
+    // Reset rolling state
     setIsRolling(false);
     setRollingDice([]);
   };
 
-  // Calculate upper section total for a player
-  const getUpperTotal = (player: Player) => {
-    const upperCategories = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes'] as const;
-    return upperCategories.reduce((total, cat) => total + (player.scoreCard[cat] || 0), 0);
-  };
-
-  // Calculate lower section total for a player
-  const getLowerTotal = (player: Player) => {
-    const lowerCategories = ['threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee', 'chance'] as const;
-    return lowerCategories.reduce((total, cat) => total + (player.scoreCard[cat] || 0), 0);
-  };
-
-  // Check if upper section gets bonus for a player
-  const getUpperBonus = (player: Player) => {
-    const upperTotal = getUpperTotal(player);
-    return upperTotal >= 63 ? 35 : 0;
-  };
-
-  // Get total score for a player
-  const getTotalScore = (player: Player) => {
-    return getUpperTotal(player) + getUpperBonus(player) + getLowerTotal(player) + (player.scoreCard.yahtzeeBonus || 0);
-  };
-
-  // Check if category is used for a player
-  const isCategoryUsed = (player: Player, category: ScoringCategory) => {
-    return player.scoreCard[category] !== undefined;
-  };
-
-  // Get potential score for category
-  const getPotentialScore = (category: ScoringCategory) => {
-    // Don't show potential scores if dice haven't been rolled yet or if dice are currently rolling
-    if (gameState.rollsLeft === 3 || isRolling) {
-      return null;
-    }
-    
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const hasYahtzee = isYahtzee(gameState.dice);
-    const yahtzeeAlreadyScored = currentPlayer.scoreCard.yahtzee !== undefined;
-    
-    // For joker Yahtzee, show potential score for valid categories
-    if (hasYahtzee && yahtzeeAlreadyScored) {
-      const upperCategory = `${gameState.dice[0].value === 1 ? 'ones' : gameState.dice[0].value === 2 ? 'twos' : gameState.dice[0].value === 3 ? 'threes' : gameState.dice[0].value === 4 ? 'fours' : gameState.dice[0].value === 5 ? 'fives' : 'sixes'}` as ScoringCategory;
-      
-      // Priority 1: Upper Section if available
-      if (isCategoryAvailable(currentPlayer, upperCategory)) {
-        return category === upperCategory ? getDiceTotal(gameState.dice) : null;
-      }
-      
-      // Priority 2: Lower Section categories only if Upper Section is filled
-      // First priority: 3-of-a-Kind or 4-of-a-Kind (if either is available)
-      const threeOfAKindAvailable = isCategoryAvailable(currentPlayer, 'threeOfAKind');
-      const fourOfAKindAvailable = isCategoryAvailable(currentPlayer, 'fourOfAKind');
-      
-      if (threeOfAKindAvailable || fourOfAKindAvailable) {
-        // Only allow 3-of-a-Kind or 4-of-a-Kind
-        const isValidJokerCategory = (category === 'threeOfAKind' && threeOfAKindAvailable) || 
-                                     (category === 'fourOfAKind' && fourOfAKindAvailable);
-        if (!isValidJokerCategory) {
-          return null; // Don't show potential scores for invalid categories
-        }
-      } else {
-        // If neither 3-of-a-Kind nor 4-of-a-Kind is available, then allow other Lower Section categories
-        const validJokerCategories = ['fullHouse', 'smallStraight', 'largeStraight', 'chance'];
-        const isValidJokerCategory = validJokerCategories.includes(category) && isCategoryAvailable(currentPlayer, category);
-        
-        if (!isValidJokerCategory) {
-          // If no Lower Section categories are available, allow Upper Section categories (except the dice value category)
-          const upperCategories = ['ones', 'twos', 'threes', 'fours', 'fives', 'sixes'];
-          const isValidUpperCategory = upperCategories.includes(category) && 
-                                      isCategoryAvailable(currentPlayer, category) && 
-                                      category !== upperCategory;
-          
-          if (isValidUpperCategory) {
-            return 0; // Score as zero in Upper Section fallback
-          }
-          
-          return null; // Don't show potential scores for invalid categories
-        }
-      }
-      
-      // For valid Lower Section categories, show appropriate score
-      if (category === 'fullHouse') {
-        return 25; // Full House is always worth 25
-      } else if (category === 'smallStraight') {
-        return 30; // Small Straight is always worth 30
-      } else if (category === 'largeStraight') {
-        return 40; // Large Straight is always worth 40
-      } else {
-        return getDiceTotal(gameState.dice); // 3-of-a-Kind, 4-of-a-Kind, and Chance use dice total
-      }
-    }
-    
-    return calculateScore(gameState.dice, category);
+  // Get potential score for category (using the shared utility)
+  const getPotentialScoreForCategory = (category: ScoringCategory) => {
+    return getPotentialScore(gameState, category);
   };
 
   // Get winner
@@ -410,6 +132,23 @@ function App() {
       const winnerScore = winner ? getTotalScore(winner) : 0;
       return playerScore > winnerScore ? player : winner;
     }, null as Player | null);
+  };
+
+  // Handle play again
+  const handlePlayAgain = () => {
+    const newState = gameEngine.startGame(playerCount, playerNames);
+    setGameState(newState);
+    setIsRolling(false);
+    setRollingDice([]);
+  };
+
+  // Handle start from scratch
+  const handleStartFromScratch = () => {
+    gameEngine.resetHistory();
+    const newState = gameEngine.startGame(playerCount, playerNames);
+    setGameState(newState);
+    setIsRolling(false);
+    setRollingDice([]);
   };
 
   // Handle player count change
@@ -657,9 +396,45 @@ function App() {
               </div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
+            {/* Game History */}
+            {gameEngine.getGameHistory().length > 0 && (
+              <div style={{ 
+                backgroundColor: 'rgba(251, 191, 36, 0.1)', 
+                padding: '1.5rem', 
+                borderRadius: '0.5rem', 
+                marginBottom: '2rem',
+                border: '1px solid rgba(251, 191, 36, 0.3)'
+              }}>
+                <h3 style={{ 
+                  fontSize: '1.25rem', 
+                  fontWeight: 'bold', 
+                  color: '#fbbf24', 
+                  marginBottom: '1rem',
+                  textAlign: 'center',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  📜 Session History:
+                </h3>
+                <div style={{ display: 'grid', gap: '0.5rem' }}>
+                  {gameEngine.getGameHistory().map((result, index) => (
+                    <div key={index} style={{ 
+                      fontSize: '0.875rem', 
+                      color: 'white', 
+                      padding: '0.5rem',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderRadius: '0.25rem',
+                      fontFamily: '"Georgia", "Times New Roman", serif'
+                    }}>
+                      <strong>GAME {result.gameNumber}:</strong> {result.winner} ({result.players.find(p => p.name === result.winner)?.score}) beat {result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ textAlign: 'center', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
               <button
-                onClick={() => setGameState(initializeGame(1))}
+                onClick={handlePlayAgain}
                 style={{ 
                   backgroundColor: '#059669',
                   padding: '1rem 2rem',
@@ -672,7 +447,23 @@ function App() {
                   fontFamily: '"Georgia", "Times New Roman", serif'
                 }}
               >
-                🎲 New Game
+                🎲 Play Again
+              </button>
+              <button
+                onClick={handleStartFromScratch}
+                style={{ 
+                  backgroundColor: '#dc2626',
+                  padding: '1rem 2rem',
+                  borderRadius: '0.5rem',
+                  fontWeight: '600',
+                  fontSize: '1.25rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}
+              >
+                🆕 Start From Scratch
               </button>
             </div>
           </div>
@@ -979,7 +770,7 @@ function App() {
                       }}>
                         <span style={{ textTransform: 'capitalize' }}>{category}</span>
                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                           {isActivePlayer && !isCategoryUsed(displayPlayer, category) && getPotentialScore(category) !== null && (
+                           {isActivePlayer && !isCategoryUsed(displayPlayer, category) && getPotentialScoreForCategory(category) !== null && (
                              <span style={{ 
                                fontSize: '0.75rem', 
                                color: '#d97706', 
@@ -988,7 +779,7 @@ function App() {
                                borderRadius: '0.125rem',
                                fontFamily: '"Georgia", "Times New Roman", serif'
                              }}>
-                               ({getPotentialScore(category)})
+                               ({getPotentialScoreForCategory(category)})
                              </span>
                            )}
                           <button
@@ -1147,7 +938,7 @@ function App() {
                       }}>
                         <span>{name}</span>
                                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                           {isActivePlayer && !isCategoryUsed(displayPlayer, key) && getPotentialScore(key) !== null && (
+                           {isActivePlayer && !isCategoryUsed(displayPlayer, key) && getPotentialScoreForCategory(key) !== null && (
                              <span style={{ 
                                fontSize: '0.75rem', 
                                color: '#d97706', 
@@ -1156,7 +947,7 @@ function App() {
                                borderRadius: '0.125rem',
                                fontFamily: '"Georgia", "Times New Roman", serif'
                              }}>
-                               ({getPotentialScore(key)})
+                               ({getPotentialScoreForCategory(key)})
                              </span>
                            )}
                           <button
