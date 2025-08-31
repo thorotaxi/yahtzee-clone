@@ -14,6 +14,7 @@ function App() {
   const [isRolling, setIsRolling] = useState(false);
   const [rollingDice, setRollingDice] = useState<number[]>([]);
   const [forceYahtzee] = useState(false);
+  const [quickTestMode, setQuickTestMode] = useState(false);
 
   // Start the game
   const startGame = () => {
@@ -149,6 +150,64 @@ function App() {
     setGameState(newState);
     setIsRolling(false);
     setRollingDice([]);
+  };
+
+  // Quick test mode - fill in most categories for testing
+  const enableQuickTestMode = () => {
+    setQuickTestMode(true);
+    
+    // Create a test game state with most categories filled
+    const testPlayers = gameState.players.map((player) => {
+      const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
+      
+      // Fill in all categories except 'chance' with reasonable test scores
+      const categories: ScoringCategory[] = [
+        'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
+        'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
+      ];
+      
+      categories.forEach((category) => {
+        // Generate varied but realistic scores
+        let score = 0;
+        switch (category) {
+          case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
+          case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
+          case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
+          case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
+          case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
+          case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
+          case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
+          case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
+          case 'fullHouse': score = 25; break;
+          case 'smallStraight': score = 30; break;
+          case 'largeStraight': score = 40; break;
+          case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
+        }
+        testScoreCard[category] = score;
+      });
+      
+      // Add some Yahtzee bonuses for variety
+      if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
+        testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
+      }
+      
+      return {
+        ...player,
+        scoreCard: testScoreCard
+      };
+    });
+    
+    // Set to final turn with current player having one category left
+    const newState = {
+      ...gameState,
+      players: testPlayers,
+      currentTurn: 13,
+      currentPlayerIndex: 0,
+      rollsLeft: 3,
+      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
+    };
+    
+    setGameState(newState);
   };
 
   // Handle player count change
@@ -691,6 +750,62 @@ function App() {
               )}
             </div>
             */}
+            
+            {/* Quick Test Mode */}
+            {!quickTestMode && gameState.gameStarted && !gameState.gameComplete && (
+              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                <button
+                  onClick={enableQuickTestMode}
+                  style={{
+                    backgroundColor: '#7c3aed',
+                    color: 'white',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.25rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}
+                >
+                  🧪 Quick Test Mode
+                </button>
+                <p style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#fbbf24', 
+                  marginTop: '0.5rem',
+                  fontStyle: 'italic',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  Fill most categories to test game completion
+                </p>
+              </div>
+            )}
+            
+            {quickTestMode && (
+              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                <span style={{
+                  backgroundColor: '#7c3aed',
+                  color: 'white',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  🧪 Quick Test Mode Active
+                </span>
+                <p style={{ 
+                  fontSize: '0.75rem', 
+                  color: '#fbbf24', 
+                  marginTop: '0.5rem',
+                  fontStyle: 'italic',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  Score in "Chance" to complete the game
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Player Score Cards */}
