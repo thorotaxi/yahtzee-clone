@@ -13,14 +13,12 @@ function App() {
   const [playerNames, setPlayerNames] = useState(['Player 1']);
   const [isRolling, setIsRolling] = useState(false);
   const [rollingDice, setRollingDice] = useState<number[]>([]);
-  const [forceYahtzee] = useState(false);
-  const [quickTestMode, setQuickTestMode] = useState(false);
+  // Test features - hidden for production
+  // const [forceYahtzee, setForceYahtzee] = useState(false);
 
   // Start the game
   const startGame = () => {
-    console.log('Starting game with:', { playerCount, playerNames }); // Debug log
     const newState = gameEngine.startGame(playerCount, playerNames);
-    console.log('New game state:', newState); // Debug log
     setGameState(newState);
     
     // Reset rolling state
@@ -55,7 +53,7 @@ function App() {
           ...prev,
           dice: prev.dice.map((die, index) => 
             unheldDiceIndices.includes(index) 
-              ? { ...die, value: forceYahtzee ? 2 : Math.floor(Math.random() * 6) + 1 }
+              ? { ...die, value: Math.floor(Math.random() * 6) + 1 }
               : die
           )
         }));
@@ -66,9 +64,23 @@ function App() {
           setIsRolling(false);
           setRollingDice([]);
           
-          // Use the engine to roll dice
-          const newState = gameEngine.rollDice();
-          setGameState(newState);
+          // Test features - hidden for production
+          // if (forceYahtzee) {
+          //   // Force Yahtzee mode: manually update state with all 2s
+          //   setGameState(prev => ({
+          //     ...prev,
+          //     dice: prev.dice.map((die, index) => 
+          //       unheldDiceIndices.includes(index) 
+          //         ? { ...die, value: 2 }
+          //         : die
+          //     ),
+          //     rollsLeft: prev.rollsLeft - 1
+          //   }));
+          // } else {
+            // Normal mode: use the engine to roll dice
+            const newState = gameEngine.rollDice();
+            setGameState(newState);
+          // }
         }
       }, interval);
     }
@@ -147,70 +159,88 @@ function App() {
 
   // Handle start from scratch
   const handleStartFromScratch = () => {
+    // Reset game history
     gameEngine.resetHistory();
-    const newState = gameEngine.startGame(playerCount, playerNames);
-    setGameState(newState);
+    
+    // Reset all local state to initial values
+    setPlayerCount(1);
+    setPlayerNames(['Player 1']);
+    // setForceYahtzee(false);
     setIsRolling(false);
     setRollingDice([]);
-  };
-
-  // Quick test mode - fill in most categories for testing
-  const enableQuickTestMode = () => {
-    setQuickTestMode(true);
     
-    // Create a test game state with most categories filled
-    const testPlayers = gameState.players.map((player) => {
-      const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
-      
-      // Fill in all categories except 'chance' with reasonable test scores
-      const categories: ScoringCategory[] = [
-        'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
-        'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
-      ];
-      
-      categories.forEach((category) => {
-        // Generate varied but realistic scores
-        let score = 0;
-        switch (category) {
-          case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
-          case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
-          case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
-          case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
-          case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
-          case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
-          case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
-          case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
-          case 'fullHouse': score = 25; break;
-          case 'smallStraight': score = 30; break;
-          case 'largeStraight': score = 40; break;
-          case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
-        }
-        testScoreCard[category] = score;
-      });
-      
-      // Add some Yahtzee bonuses for variety
-      if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
-        testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
-      }
-      
-      return {
-        ...player,
-        scoreCard: testScoreCard
-      };
-    });
-    
-    // Set to final turn with current player having one category left
-    const newState = {
-      ...gameState,
-      players: testPlayers,
-      currentTurn: 13,
+    // Reset game state to initial setup state
+    const initialState = gameEngine.getState();
+    const resetState = {
+      ...initialState,
+      gameStarted: false,
+      players: [],
       currentPlayerIndex: 0,
-      rollsLeft: 3,
-      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
+      currentTurn: 1,
+      gameComplete: false
     };
     
-    setGameState(newState);
+    gameEngine.updateState(resetState);
+    setGameState(resetState);
   };
+
+  // Quick test mode - fill in most categories for testing (hidden for production)
+  // const enableQuickTestMode = () => {
+  //   // Create a test game state with most categories filled
+  //   const testPlayers = gameState.players.map((player) => {
+  //     const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
+  //     
+  //     // Fill in all categories except 'chance' with reasonable test scores
+  //     const categories: ScoringCategory[] = [
+  //       'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
+  //       'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
+  //     ];
+  //     
+  //     categories.forEach((category) => {
+  //       // Generate varied but realistic scores
+  //       let score = 0;
+  //       switch (category) {
+  //         case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
+  //         case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
+  //         case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
+  //         case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
+  //         case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
+  //         case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
+  //         case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
+  //         case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
+  //         case 'fullHouse': score = 25; break;
+  //         case 'smallStraight': score = 30; break;
+  //         case 'largeStraight': score = 40; break;
+  //         case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
+  //       }
+  //       testScoreCard[category] = score;
+  //     });
+  //     
+  //     // Add some Yahtzee bonuses for variety
+  //     if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
+  //       testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
+  //     }
+  //     
+  //     return {
+  //       ...player,
+  //       scoreCard: testScoreCard
+  //     };
+  //   });
+  //   
+  //   // Set to final turn with current player having one category left
+  //   const newState = {
+  //     ...gameState,
+  //     players: testPlayers,
+  //     currentTurn: 13,
+  //     currentPlayerIndex: 0,
+  //     rollsLeft: 3,
+  //     dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
+  //   };
+  //   
+  //   // Update both the local state and the engine state
+  //   gameEngine.updateState(newState);
+  //   setGameState(newState);
+  // };
 
   // Handle player count change
   const handlePlayerCountChange = (count: number) => {
@@ -229,7 +259,7 @@ function App() {
   };
 
   // Game setup screen
-  if (!gameState.gameStarted) {
+      if (!gameState.gameStarted) {
     return (
       <div style={{ 
         minHeight: '100vh', 
@@ -721,93 +751,70 @@ function App() {
                'Click dice to hold/unhold them • Held dice are highlighted with 🔒'}
             </p>
             
-            {/* Temporary Yahtzee Testing Button - Hidden for now
-            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-              <button
-                onClick={() => setForceYahtzee(!forceYahtzee)}
-                style={{
-                  backgroundColor: forceYahtzee ? '#dc2626' : '#6b7280',
-                  color: 'white',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.25rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  fontFamily: '"Georgia", "Times New Roman", serif'
-                }}
-              >
-                {forceYahtzee ? '🎲 Disable Yahtzee Test' : '🎲 Force Yahtzee (All 2s)'}
-              </button>
-              {forceYahtzee && (
-                <p style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#fbbf24', 
-                  marginTop: '0.5rem',
-                  fontStyle: 'italic',
-                  fontFamily: '"Georgia", "Times New Roman", serif'
-                }}>
-                  Next roll will result in all 2s (Yahtzee)
-                </p>
-              )}
-            </div>
-            */}
-            
-            {/* Quick Test Mode */}
-            {!quickTestMode && gameState.gameStarted && !gameState.gameComplete && (
+            {/* Test Features - Hidden for production
+            {gameState.gameStarted && !gameState.gameComplete && (
               <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <button
-                  onClick={enableQuickTestMode}
-                  style={{
-                    backgroundColor: '#7c3aed',
-                    color: 'white',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.25rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: '600',
+                <div style={{ marginBottom: '1rem' }}>
+                  <button
+                    onClick={() => setForceYahtzee(!forceYahtzee)}
+                    style={{
+                      backgroundColor: forceYahtzee ? '#dc2626' : '#7c3aed',
+                      color: 'white',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.25rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      fontFamily: '"Georgia", "Times New Roman", serif',
+                      marginRight: '0.5rem'
+                    }}
+                  >
+                    {forceYahtzee ? '🎲 Disable Yahtzee Test' : '🎲 Force Yahtzee (All 2s)'}
+                  </button>
+                  {forceYahtzee && (
+                    <p style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#fbbf24', 
+                      marginTop: '0.5rem',
+                      fontStyle: 'italic',
+                      fontFamily: '"Georgia", "Times New Roman", serif'
+                    }}>
+                      Next roll will result in all 2s (Yahtzee)
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <button
+                    onClick={enableQuickTestMode}
+                    style={{
+                      backgroundColor: '#7c3aed',
+                      color: 'white',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.25rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: '600',
+                      fontFamily: '"Georgia", "Times New Roman", serif'
+                    }}
+                  >
+                    🧪 Quick Test Mode
+                  </button>
+                  <p style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#fbbf24', 
+                    marginTop: '0.5rem',
+                    fontStyle: 'italic',
                     fontFamily: '"Georgia", "Times New Roman", serif'
-                  }}
-                >
-                  🧪 Quick Test Mode
-                </button>
-                <p style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#fbbf24', 
-                  marginTop: '0.5rem',
-                  fontStyle: 'italic',
-                  fontFamily: '"Georgia", "Times New Roman", serif'
-                }}>
-                  Fill most categories to test game completion
-                </p>
+                  }}>
+                    Fill most categories to test game completion
+                  </p>
+                </div>
               </div>
             )}
-            
-            {quickTestMode && (
-              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <span style={{
-                  backgroundColor: '#7c3aed',
-                  color: 'white',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  fontFamily: '"Georgia", "Times New Roman", serif'
-                }}>
-                  🧪 Quick Test Mode Active
-                </span>
-                <p style={{ 
-                  fontSize: '0.75rem', 
-                  color: '#fbbf24', 
-                  marginTop: '0.5rem',
-                  fontStyle: 'italic',
-                  fontFamily: '"Georgia", "Times New Roman", serif'
-                }}>
-                  Score in "Chance" to complete the game
-                </p>
-              </div>
-            )}
+            */}
           </div>
 
           {/* Player Score Cards */}

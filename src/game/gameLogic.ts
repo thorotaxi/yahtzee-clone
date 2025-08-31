@@ -1,10 +1,10 @@
 import type { GameState, Die, ScoringCategory, Player } from '../types';
 
 /**
- * Create a new die with random value
+ * Create a new die with placeholder value (will be rolled on first roll)
  */
 export const createDie = (): Die => ({
-  value: Math.floor(Math.random() * 6) + 1,
+  value: 1, // Start with 1, will be rolled on first roll
   isHeld: false
 });
 
@@ -21,17 +21,20 @@ export const createPlayer = (id: number, name: string): Player => ({
 /**
  * Initialize a new game state
  */
-export const initializeGame = (playerCount: number, playerNames: string[]): GameState => ({
-  dice: Array.from({ length: 5 }, createDie),
-  rollsLeft: 3,
-  players: Array.from({ length: playerCount }, (_, i) => 
-    createPlayer(i + 1, playerNames[i] || `Player ${i + 1}`)
-  ),
-  currentPlayerIndex: 0,
-  currentTurn: 1,
-  gameComplete: false,
-  gameStarted: true
-});
+export const initializeGame = (playerCount: number, playerNames: string[]): GameState => {
+  const state = {
+    dice: Array.from({ length: 5 }, createDie),
+    rollsLeft: 3,
+    players: Array.from({ length: playerCount }, (_, i) => 
+      createPlayer(i + 1, playerNames[i] || `Player ${i + 1}`)
+    ),
+    currentPlayerIndex: 0,
+    currentTurn: 1,
+    gameComplete: false,
+    gameStarted: true
+  };
+  return state;
+};
 
 /**
  * Calculate score for a given category and dice
