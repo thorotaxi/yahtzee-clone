@@ -18,7 +18,9 @@ function App() {
 
   // Start the game
   const startGame = () => {
+    console.log('Starting game with:', { playerCount, playerNames }); // Debug log
     const newState = gameEngine.startGame(playerCount, playerNames);
+    console.log('New game state:', newState); // Debug log
     setGameState(newState);
     
     // Reset rolling state

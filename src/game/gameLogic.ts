@@ -30,7 +30,7 @@ export const initializeGame = (playerCount: number, playerNames: string[]): Game
   currentPlayerIndex: 0,
   currentTurn: 1,
   gameComplete: false,
-  gameStarted: false
+  gameStarted: true
 });
 
 /**
