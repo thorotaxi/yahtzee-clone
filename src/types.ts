@@ -44,4 +44,18 @@ export interface GameState {
   currentTurn: number;
   gameComplete: boolean;
   gameStarted: boolean;
+  gameNumber?: number; // For remote games
+}
+
+// Define game history result
+export interface GameHistoryResult {
+  gameNumber: number;
+  winner: string;
+  winnerScore: number;
+  totalPlayers: number;
+  completedAt: string;
+  players: { name: string; score: number; }[];
+  isTie?: boolean;
+  tiedPlayers?: { name: string; score: number; }[];
+  tieScore?: number;
 }

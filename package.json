@@ -1,13 +1,16 @@
 {
   "name": "yahtzee-clone",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview",
+    "deploy:build": "npm run build",
+    "deploy:clean": "rm -rf dist && npm run build"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",

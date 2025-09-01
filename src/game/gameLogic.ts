@@ -208,8 +208,31 @@ export const getWinner = (gameState: GameState): Player | null => {
     return null;
   }
   
-  return gameState.players.reduce((winner, player) => {
-    if (!winner) return player;
-    return getTotalScore(player) > getTotalScore(winner) ? player : winner;
-  }, null as Player | null);
+  const players = gameState.players;
+  const scores = players.map(player => getTotalScore(player));
+  const maxScore = Math.max(...scores);
+  const winners = players.filter(player => getTotalScore(player) === maxScore);
+  
+  // Return null if there's a tie (multiple players with the same highest score)
+  return winners.length === 1 ? winners[0] : null;
+};
+
+/**
+ * Check if the game ended in a tie
+ */
+export const isGameTied = (gameState: GameState): boolean => {
+  return getWinner(gameState) === null && gameState.gameComplete;
+};
+
+/**
+ * Get all players with the highest score (for ties)
+ */
+export const getTiedPlayers = (gameState: GameState): Player[] => {
+  if (!gameState.players || gameState.players.length === 0) {
+    return [];
+  }
+  
+  const scores = gameState.players.map(player => getTotalScore(player));
+  const maxScore = Math.max(...scores);
+  return gameState.players.filter(player => getTotalScore(player) === maxScore);
 };

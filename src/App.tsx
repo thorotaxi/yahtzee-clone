@@ -35,10 +35,13 @@ function App() {
   
   // Previous game result for remote mode "Play Again" notifications
   const [previousGameResult, setPreviousGameResult] = useState<{
-    winner: string;
-    winnerScore: number;
-    loser: string;
-    loserScore: number;
+    winner?: string;
+    winnerScore?: number;
+    loser?: string;
+    loserScore?: number;
+    isTie?: boolean;
+    tiedPlayers?: { name: string; score: number; }[];
+    tieScore?: number;
   } | null>(null);
   // Test features - hidden for production
   // const [forceYahtzee, setForceYahtzee] = useState(false);
@@ -545,7 +548,7 @@ function App() {
           throw new Error(error.error || 'Failed to create remote game');
         }
 
-        const result = await response.json();
+        // const result = await response.json();
 
         // Create invite text with both links
         const creatorName = playerNames[0].trim();
@@ -674,31 +677,23 @@ Be sure to click your own link. Either of you can return to this message to resu
           .then(result => {
             if (result.success) {
               // Check if this is a new game (detected by checking if currentTurn is 1 and rollsLeft is 3)
-              const isNewGame = result.gameState.currentTurn === 1 && result.gameState.rollsLeft === 3 && 
+              // const isNewGame = result.gameState.currentTurn === 1 && result.gameState.rollsLeft === 3 && 
                                !result.gameState.gameComplete && result.gameState.gameStarted;
               
-              // If this is a new game and we were previously in a completed game, fetch the previous game result
-              if (isNewGame && gameState.gameComplete) {
-                // Fetch the previous game result from the server
-                fetch(`http://localhost:3001/api/games/${remoteGameId}/play-again`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                })
-                .then(response => response.json())
-                .then(playAgainResult => {
-                  if (playAgainResult.success && playAgainResult.previousGameResult) {
-                    setPreviousGameResult(playAgainResult.previousGameResult);
-                  }
-                })
-                .catch(error => {
-                  console.error('Error fetching previous game result:', error);
-                });
+              // Check if the game state contains a previous game result (for both players)
+              if (result.gameState.previousGameResult && !previousGameResult) {
+                setPreviousGameResult(result.gameState.previousGameResult);
               }
               
-              // Update game state if it has changed
-              setGameState(result.gameState);
+              // Clear previousGameResult from game state after it's been set locally
+              if (result.gameState.previousGameResult && previousGameResult) {
+                // Remove the previousGameResult from the game state to prevent it from persisting
+                const { previousGameResult: _, ...gameStateWithoutPrevious } = result.gameState;
+                setGameState(gameStateWithoutPrevious);
+              } else {
+                // Update game state if it has changed
+                setGameState(result.gameState);
+              }
               
               // If we're in joining mode and the game has started (friend joined), exit joining mode
               if (isJoiningRemoteGame && result.gameState.gameStarted) {
@@ -923,29 +918,31 @@ Be sure to click your own link. Either of you can return to this message to resu
   // Get winner
   const getWinner = () => {
     if (!gameState.gameComplete || !gameState.players || gameState.players.length === 0) return null;
-    return gameState.players.reduce((winner, player) => {
-      const playerScore = getTotalScore(player);
-      const winnerScore = winner ? getTotalScore(winner) : 0;
-      return playerScore > winnerScore ? player : winner;
-    }, null as Player | null);
+    const players = gameState.players;
+    const scores = players.map(player => getTotalScore(player));
+    const maxScore = Math.max(...scores);
+    const winners = players.filter(player => getTotalScore(player) === maxScore);
+    
+    // Return null if there's a tie (multiple players with the same highest score)
+    return winners.length === 1 ? winners[0] : null;
   };
+
+  // Check if game is tied
+  // const isGameTied = () => {
+  //   return getWinner() === null && gameState.gameComplete;
+  // };
+
+  // // Get all tied players
+  // const getTiedPlayers = () => {
+  //   if (!gameState.players || gameState.players.length === 0) return [];
+  //   const scores = gameState.players.map(player => getTotalScore(player));
+  //   const maxScore = Math.max(...scores);
+  //   return gameState.players.filter(player => getTotalScore(player) === maxScore);
+  // };
 
   // Handle play again
   const handlePlayAgain = () => {
-    // Capture previous game result for notification if game was complete
-    if (gameState.gameComplete && gameMode === 'remote') {
-      const winner = getWinner();
-      const loser = gameState.players.find(p => p.name !== winner?.name);
-      if (winner && loser) {
-        console.log('Setting previous game result:', { winner: winner.name, loser: loser.name });
-        setPreviousGameResult({
-          winner: winner.name,
-          winnerScore: getTotalScore(winner),
-          loser: loser.name,
-          loserScore: getTotalScore(loser),
-        });
-      }
-    }
+    // Note: Previous game result will be set by the server and synchronized to both players
     
     // For remote games, send play again action to server
     if (isJoiningRemoteGame || remoteGameId) {
@@ -984,31 +981,31 @@ Be sure to click your own link. Either of you can return to this message to resu
   };
 
   // Handle start from scratch
-  const handleStartFromScratch = () => {
-    // Reset game history
-    gameEngine.resetHistory();
-    
-         // Reset all local state to initial values
-           setPlayerCount(1);
-       setPlayerNames(['Player 1']);
-       // setForceYahtzee(false);
-       setIsRolling(false);
-       setRollingDice([]);
-   
-    // Reset game state to initial setup state
-    const initialState = gameEngine.getState();
-    const resetState = {
-      ...initialState,
-      gameStarted: false,
-      players: [],
-      currentPlayerIndex: 0,
-      currentTurn: 1,
-      gameComplete: false
-    };
-    
-    gameEngine.updateState(resetState);
-    setGameState(resetState);
-  };
+  // const handleStartFromScratch = () => {
+  //   // Reset game history
+  //   gameEngine.resetHistory();
+  //   
+  //        // Reset all local state to initial values
+  //          setPlayerCount(1);
+  //      setPlayerNames(['Player 1']);
+  //      // setForceYahtzee(false);
+  //      setIsRolling(false);
+  //      setRollingDice([]);
+  //  
+  //   // Reset game state to initial setup state
+  //   const initialState = gameEngine.getState();
+  //   const resetState = {
+  //     ...initialState,
+  //     gameStarted: false,
+  //     players: [],
+  //     currentPlayerIndex: 0,
+  //     currentTurn: 1,
+  //     gameComplete: false
+  //   };
+  //   
+  //   gameEngine.updateState(resetState);
+  //   setGameState(resetState);
+  // };
 
   // Handle create new game
   const handleCreateNewGame = () => {
@@ -1018,10 +1015,10 @@ Be sure to click your own link. Either of you can return to this message to resu
   };
   
   // Clear previous game result notification
-  const clearPreviousGameResult = () => {
-    console.log('Clearing previous game result notification');
-    setPreviousGameResult(null);
-  };
+  // const clearPreviousGameResult = () => {
+  //   setPreviousGameResult(null);
+  //   // console.log('Clearing previous game result notification');
+  // };
 
      // Quick test mode - fill in most categories for testing (hidden for production)
    // const enableQuickTestMode = () => {
@@ -1783,10 +1780,12 @@ Be sure to click your own link. Either of you can return to this message to resu
                       borderRadius: '0.25rem',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
-                                             <strong>GAME {result.gameNumber}:</strong> {result.players.length === 1 
-                         ? `${result.winner || 'Unknown'} scored ${result.players.find(p => p.name === result.winner)?.score || 0} points`
-                         : `${result.winner || 'Unknown'} (${result.players.find(p => p.name === result.winner)?.score || 0}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}`
-                       }
+                                                                                                        <strong>GAME {result.gameNumber}:</strong> {result.players.length === 1 
+                                       ? `${result.winner || 'Unknown'} scored ${result.players.find(p => p.name === result.winner)?.score || 0} points`
+                                       : result.isTie 
+                                         ? `${result.tiedPlayers?.map(p => p.name).join(' and ')} tied with ${result.tieScore} points`
+                                         : `${result.winner || 'Unknown'} (${result.players.find(p => p.name === result.winner)?.score || 0}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}`
+                                     }
                     </div>
                   ))}
                 </div>
@@ -1822,7 +1821,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                        borderRadius: '0.25rem',
                        fontFamily: '"Georgia", "Times New Roman", serif'
                      }}>
-                       <strong>GAME {result.gameNumber}:</strong> {result.winner} ({result.winnerScore}) beat {result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}
+                                               <strong>GAME {result.gameNumber}:</strong> {result.winner} (${result.winnerScore}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}
                      </div>
                    ))}
                  </div>
@@ -1850,7 +1849,10 @@ Be sure to click your own link. Either of you can return to this message to resu
                   fontWeight: '600',
                   fontFamily: '"Georgia", "Times New Roman", serif'
                 }}>
-                  🏆 {previousGameResult.winner} ({previousGameResult.winnerScore}) beat {previousGameResult.loser} ({previousGameResult.loserScore}) in the previous game. A new game has begun!
+                                             {previousGameResult.isTie 
+                             ? `🏆 ${previousGameResult.tiedPlayers?.map(p => p.name).join(' and ')} tied with ${previousGameResult.tieScore} points in the previous game. A new game has begun!`
+                             : `🏆 ${previousGameResult.winner} (${previousGameResult.winnerScore}) beat ${previousGameResult.loser} (${previousGameResult.loserScore}) in the previous game. A new game has begun!`
+                           }
                 </div>
                 <button
                   onClick={() => setPreviousGameResult(null)}
@@ -2604,11 +2606,11 @@ Be sure to click your own link. Either of you can return to this message to resu
                       Lower Section
                     </h4>
                     {([
-                      { key: 'threeOfAKind' as const, name: '3 of Kind' },
-                      { key: 'fourOfAKind' as const, name: '4 of Kind' },
+                      { key: 'threeOfAKind' as const, name: 'Three of a Kind' },
+                      { key: 'fourOfAKind' as const, name: 'Four of a Kind' },
                       { key: 'fullHouse' as const, name: 'Full House' },
-                      { key: 'smallStraight' as const, name: 'Sm Straight' },
-                      { key: 'largeStraight' as const, name: 'Lg Straight' },
+                      { key: 'smallStraight' as const, name: 'Small Straight' },
+                      { key: 'largeStraight' as const, name: 'Large Straight' },
                       { key: 'yahtzee' as const, name: 'Yahtzee' },
                       { key: 'chance' as const, name: 'Chance' }
                     ]).map(({ key, name }) => (

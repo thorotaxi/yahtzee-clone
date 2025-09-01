@@ -35,6 +35,12 @@ export interface GameResult {
   }[];
   winner: string;
   timestamp: Date;
+  isTie?: boolean;
+  tiedPlayers?: {
+    name: string;
+    score: number;
+  }[];
+  tieScore?: number;
 }
 
 /**

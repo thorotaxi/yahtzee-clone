@@ -274,18 +274,25 @@ export class DatabaseManager {
    */
   addGameResult(gameId: string, result: GameResult): void {
     const transaction = this.db.transaction(() => {
+      // Check if this is a tie
+      const scores = result.players.map(p => p.score);
+      const maxScore = Math.max(...scores);
+      const tiedPlayers = result.players.filter(p => p.score === maxScore);
+      const isTie = tiedPlayers.length > 1;
+      
       const historyStmt = this.db.prepare(`
-        INSERT INTO game_history (game_id, game_number, winner_name, winner_score, total_players)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO game_history (game_id, game_number, winner_name, winner_score, total_players, is_tie)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
 
-      const result2 = historyStmt.run(
-        gameId,
-        result.gameNumber,
-        result.winner,
-        result.players.find(p => p.name === result.winner)?.score || 0,
-        result.players.length
-      );
+             const result2 = historyStmt.run(
+         gameId,
+         result.gameNumber,
+         result.winner,
+         result.players.find(p => p.name === result.winner)?.score || 0,
+         result.players.length,
+         isTie ? 1 : 0
+       );
 
       const historyId = result2.lastInsertRowid as number;
 
@@ -305,36 +312,47 @@ export class DatabaseManager {
   /**
    * Get game history for a game series
    */
-  getGameHistory(gameId: string): GameResult[] {
-    const historyStmt = this.db.prepare(`
-      SELECT h.*, hps.player_name, hps.player_score
-      FROM game_history h
-      JOIN history_player_scores hps ON h.id = hps.history_id
-      WHERE h.game_id = ?
-      ORDER BY h.game_number DESC, hps.player_score DESC
-    `);
+  getGameHistory(gameId: string): any[] {
+    const history = this.db.prepare(`
+      SELECT * FROM game_history 
+      WHERE game_id = ? 
+      ORDER BY game_number DESC
+    `).all(gameId);
 
-    const rows = historyStmt.all(gameId) as any[];
-    const historyMap = new Map<number, GameResult>();
-
-    rows.forEach(row => {
-      if (!historyMap.has(row.game_number)) {
-        historyMap.set(row.game_number, {
-          gameNumber: row.game_number,
-          players: [],
-          winner: row.winner_name,
-          timestamp: new Date(row.completed_at)
-        });
+    return history.map((record: any) => {
+      const players = this.db.prepare(`
+        SELECT player_name, player_score 
+        FROM history_player_scores 
+        WHERE history_id = ?
+      `).all(record.id).map((p: any) => ({
+        name: p.player_name,
+        score: p.player_score
+      }));
+      
+      // Use the is_tie field from database, with fallback to dynamic detection
+      const isTie = record.is_tie || false;
+      let tiedPlayers = undefined;
+      let tieScore = undefined;
+      
+      if (isTie) {
+        const scores = players.map((p: any) => p.score);
+        const maxScore = Math.max(...scores);
+        tiedPlayers = players.filter((p: any) => p.score === maxScore);
+        tieScore = maxScore;
       }
-
-      const result = historyMap.get(row.game_number)!;
-      result.players.push({
-        name: row.player_name,
-        score: row.player_score
-      });
+      
+      return {
+        gameNumber: record.game_number,
+        winner: record.winner_name,
+        winnerScore: record.winner_score,
+        totalPlayers: record.total_players,
+        completedAt: record.completed_at,
+        players: players,
+        isTie: isTie,
+        tiedPlayers: tiedPlayers,
+        tieScore: tieScore
+      };
     });
-
-    return Array.from(historyMap.values());
   }
 
   /**

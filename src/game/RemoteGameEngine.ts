@@ -29,6 +29,9 @@ export class RemoteGameEngine implements GameEngine {
     const existingState = this.dbManager.loadGame(gameId);
     if (existingState) {
       this.state = existingState;
+      // Determine game number based on existing history
+      const history = this.dbManager.getGameHistory(gameId);
+      this.gameNumber = history.length + 1;
     } else {
       // Initialize with default state (same as LocalGameEngine)
       this.state = {
@@ -40,6 +43,7 @@ export class RemoteGameEngine implements GameEngine {
         gameComplete: false,
         gameStarted: false
       };
+      this.gameNumber = 1;
     }
   }
 
@@ -53,15 +57,13 @@ export class RemoteGameEngine implements GameEngine {
   }
 
   startGame(playerCount: number, playerNames: string[]): GameState {
-    // Use the same logic as LocalGameEngine, but increment the gameNumber
+    // Use the same logic as LocalGameEngine, but preserve the current gameNumber
     const newState = initializeGame(playerCount, playerNames);
-    // Increment the gameNumber for the new game
+    // Keep the current gameNumber (don't increment here)
     this.state = {
       ...newState,
-      gameNumber: this.gameNumber + 1
+      gameNumber: this.gameNumber
     };
-    // Update the instance gameNumber as well
-    this.gameNumber = this.state.gameNumber;
     this.dbManager.updateGame(this.gameId, this.state);
     return this.state;
   }
@@ -212,20 +214,42 @@ export class RemoteGameEngine implements GameEngine {
     // If game is complete, add to history (same logic as LocalGameEngine)
     if (gameComplete) {
       const winner = getWinner(this.state);
+      const players = this.state.players.map(player => ({
+        name: player.name,
+        score: getTotalScore(player)
+      }));
+      
       if (winner && winner.name) {
+        // There's a clear winner
         const result: GameResult = {
           gameNumber: this.gameNumber,
-          players: this.state.players.map(player => ({
-            name: player.name,
-            score: getTotalScore(player)
-          })),
+          players: players,
           winner: winner.name,
           timestamp: new Date()
         };
         
         this.dbManager.addGameResult(this.gameId, result);
-        this.gameNumber++;
+      } else {
+        // It's a tie - record the first tied player as "winner" for database compatibility
+        // The tie detection will be handled in getGameHistory
+        const scores = players.map(p => p.score);
+        const maxScore = Math.max(...scores);
+        const tiedPlayers = players.filter(p => p.score === maxScore);
+        
+        const result: GameResult = {
+          gameNumber: this.gameNumber,
+          players: players,
+          winner: tiedPlayers[0].name, // Use first tied player for database
+          timestamp: new Date(),
+          isTie: true,
+          tiedPlayers: tiedPlayers,
+          tieScore: maxScore
+        };
+        
+        this.dbManager.addGameResult(this.gameId, result);
       }
+      
+      this.gameNumber++;
     }
     
     // Persist to database

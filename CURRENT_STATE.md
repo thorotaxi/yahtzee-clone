@@ -107,6 +107,19 @@ CREATE TABLE score_cards (
 - **Error Handling**: Graceful degradation for network issues
 - **Database Cleanup**: Daily cleanup of games older than 7 days
 
+## 🔧 **Current System Status**
+
+### **Live Services**:
+- **Backend Server**: ✅ Running on port 3001
+- **React Frontend**: ✅ Running in dev mode (port 5173)
+- **Database**: ✅ SQLite operational, ready for games
+
+### **Recent Fixes Applied**:
+1. **Game Numbering**: Fixed increment in remote games (Game 1 → Game 2 → Game 3)
+2. **Score Notifications**: Fixed missing winner scores in previous game alerts
+3. **Score Card Layout**: Fixed positioning so each player sees their card first
+4. **Session History**: Fixed margins to prevent crashing into buttons
+
 ## 🚀 **Deployment Readiness**
 
 ### **Current Status**: ✅ **READY FOR DEPLOYMENT**
@@ -158,8 +171,9 @@ yahtzee-clone/
 
 ## 🔄 **Git Repository Status**
 
-### **Current Branch**: Main
-### **Last Commit**: Recent cleanup and feature additions
+### **Current Branch**: `master`
+### **Last Commit**: `85acc97` - "Fix game numbering increment and previous game result notification"
+### **Working Tree**: Clean (no uncommitted changes)
 ### **Files to Track**:
 - ✅ All source code files
 - ✅ Package configuration files
@@ -186,6 +200,8 @@ server.log
 4. **Error Handling**: Invalid links, network issues, etc.
 5. **Player Count Expansion**: Extended from 4 to 6 players
 6. **UI Improvements**: Better error messages, less dramatic buttons
+7. **Game Numbering**: Proper increment for remote games (Game 1 → Game 2 → Game 3)
+8. **Previous Game Notifications**: Complete score display for both players after "Play Again"
 
 ### **Bugs Fixed**
 1. **Game State Persistence**: Page refresh now works correctly
@@ -193,6 +209,10 @@ server.log
 3. **Scoring Issues**: Fixed database player ID mismatches
 4. **CORS Issues**: Proper cross-origin request handling
 5. **Force Yahtzee**: Test feature now works in both modes
+6. **Game Numbering**: Fixed games always showing as "Game 1" in remote mode
+7. **Score Notifications**: Fixed missing winner scores in previous game alerts
+8. **Score Card Positioning**: Fixed remote games so each player sees their card first
+9. **Session History Layout**: Fixed history crashing into buttons with proper margins
 
 ### **Code Quality Improvements**
 1. **Debug Cleanup**: Removed verbose console logs
@@ -256,9 +276,9 @@ server.log
 ## 📞 **Contact & Support**
 
 ### **Development Notes**
-- **Last Updated**: [Current Date]
-- **Status**: Ready for deployment
-- **Key Features**: Local/remote multiplayer Yahtzee
+- **Last Updated**: December 2024
+- **Status**: Ready for deployment, all major issues resolved
+- **Key Features**: Local/remote multiplayer Yahtzee with proper game numbering
 - **Tech Stack**: React/TypeScript + Node.js/Express + SQLite
 
 ### **Deployment Checklist**
