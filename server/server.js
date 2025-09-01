@@ -21,16 +21,10 @@ app.use(express.json());
 app.use((req, res, next) => {
   // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // Cache control for API endpoints
-  if (req.path.startsWith('/api/')) {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  }
+  // Cache control for all endpoints (API and game actions)
+  res.setHeader('Cache-Control', 'no-cache, no-store');
   
   next();
 });
