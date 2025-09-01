@@ -19,28 +19,54 @@ function App() {
   const [remoteGameId, setRemoteGameId] = useState<string | null>(null);
   const [remotePlayerType, setRemotePlayerType] = useState<'creator' | 'friend' | null>(null);
   const [isJoiningRemoteGame, setIsJoiningRemoteGame] = useState(false);
+  const [gameLinkError, setGameLinkError] = useState<string | null>(null);
   // Test features - hidden for production
-  // const [forceYahtzee, setForceYahtzee] = useState(false);
+  const [forceYahtzee, setForceYahtzee] = useState(false);
 
   // Join a remote game (for invited friend)
-  const joinRemoteGame = (friendName: string) => {
+  const joinRemoteGame = async (friendName: string) => {
     if (!remoteGameId || !friendName.trim()) {
       alert('Please enter your name to join the game.');
       return;
     }
 
-    // For now, show a placeholder - database integration will be implemented on server side
-    alert(`Joining remote game ${remoteGameId} as ${friendName}. Database integration will be implemented when we add the server-side API.`);
-    
-    // TODO: 
-    // 1. Load game from database using remoteGameId
-    // 2. Add friend's name to the game
-    // 3. Set up RemoteGameEngine
-    // 4. Start game with friend going first
+    try {
+      // Call server API to join the game
+              const response = await fetch(`http://localhost:3001/api/games/${remoteGameId}/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ friendName: friendName.trim() })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Server error response:', error);
+        throw new Error(error.error || 'Failed to join game');
+      }
+
+      const result = await response.json();
+      
+      // Set game state and exit joining mode
+      setGameState(result.gameState);
+      setIsJoiningRemoteGame(false);
+
+      // Reset rolling state
+      setIsRolling(false);
+      setRollingDice([]);
+
+      alert(`Successfully joined the game as ${friendName}! You go first.`);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to join the game: ${errorMessage}`);
+      console.error('Error joining remote game:', error);
+    }
   };
 
   // Start the game
-  const startGame = () => {
+  const startGame = async () => {
     if (gameMode === 'local') {
       const newState = gameEngine.startGame(playerCount, playerNames);
       setGameState(newState);
@@ -56,37 +82,59 @@ function App() {
       }
       
       // Generate unique game ID
-      const gameId = generateGameId();
+      const fullGameId = generateGameId();
+      const baseGameId = fullGameId.split('_').slice(0, -1).join('_'); // Remove timestamp
       
-      // Create invite text with both links (database integration will be implemented on server side)
-      const creatorName = playerNames[0].trim();
-      const baseUrl = window.location.origin;
-      const creatorGameId = `${gameId}_creator`;
-      const friendGameId = `${gameId}_friend`;
-      const creatorLink = `${baseUrl}?game=${creatorGameId}`;
-      const friendLink = `${baseUrl}?game=${friendGameId}`;
-      
-      const inviteText = `${creatorName} has challenged you to a game of Yahtzee.
+      try {
+        // Create the game on the server
+        const response = await fetch('http://localhost:3001/api/games', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            gameId: baseGameId,
+            creatorName: playerNames[0].trim()
+          })
+        });
+
+                if (!response.ok) {
+          const error = await response.json();
+          console.error('Game creation error:', error);
+          throw new Error(error.error || 'Failed to create remote game');
+        }
+
+        const result = await response.json();
+
+        // Create invite text with both links
+        const creatorName = playerNames[0].trim();
+                  const baseUrl = window.location.origin; // Use dynamic port detection
+        const creatorGameId = `${baseGameId}_creator`;
+        const friendGameId = `${baseGameId}_friend`;
+        const creatorLink = `${baseUrl}?game=${creatorGameId}`;
+        const friendLink = `${baseUrl}?game=${friendGameId}`;
+        
+        const inviteText = `${creatorName} has challenged you to a game of Yahtzee.
 
 Your personal link is: ${friendLink}
 ${creatorName}'s link is: ${creatorLink}
 
 Be sure to click your own link. Either of you can return to this message to resume your game at any time.`;
 
-      // Copy to clipboard and show to user
-      navigator.clipboard.writeText(inviteText).then(() => {
-        alert(`Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
+        // Copy to clipboard and show to user
+        navigator.clipboard.writeText(inviteText).then(() => {
+          alert(`Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
 
-Game ID: ${gameId}
-Creator: ${creatorName}
-
-The invite text includes both links - make sure your friend clicks their own link!
-
-Note: Database integration will be implemented when we add the server-side API.`);
-      }).catch(() => {
-        // Fallback if clipboard API fails
-        prompt('Copy this invite text and send it to your friend:', inviteText);
-      });
+The invite contains one link for your friend and one for you (in case you leave and want to return later).`);
+        }).catch(() => {
+          // Fallback if clipboard API fails
+          prompt('Copy this invite text and send it to your friend:', inviteText);
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        alert(`Failed to create remote game: ${errorMessage}`);
+        console.error('Error creating remote game:', error);
+      }
     }
   };
 
@@ -111,14 +159,75 @@ Note: Database integration will be implemented when we add the server-side API.`
         
         setRemoteGameId(baseGameId);
         setRemotePlayerType(playerType);
-        setIsJoiningRemoteGame(true);
         setGameMode('remote');
+        
+        // Load the game state from the database
+        fetch(`http://localhost:3001/api/games/${baseGameId}`)
+          .then(response => response.json())
+          .then(result => {
+            if (result.success) {
+              setGameState(result.gameState);
+              setGameLinkError(null); // Clear any previous error
+              // If the game has started, we're not in joining mode anymore
+              if (result.gameState.gameStarted) {
+                setIsJoiningRemoteGame(false);
+              } else {
+                // If game hasn't started yet, we're in joining mode
+                setIsJoiningRemoteGame(true);
+              }
+            } else {
+              // Game doesn't exist or has expired
+              setGameLinkError("The game link you're trying to use doesn't exist or has expired. Feel free to create a new game!");
+              setIsJoiningRemoteGame(false);
+              setGameMode('local'); // Reset to local mode
+            }
+          })
+          .catch(error => {
+            console.error('Error loading game state on page load:', error);
+            // If there's an error, show the error message
+            setGameLinkError("The game link you're trying to use doesn't exist or has expired. Feel free to create a new game!");
+            setIsJoiningRemoteGame(false);
+            setGameMode('local'); // Reset to local mode
+          });
+      } else {
+        // Invalid game ID format - doesn't end with _creator or _friend
+        setGameLinkError("The game link you're trying to use doesn't exist or has expired. Feel free to create a new game!");
+        setIsJoiningRemoteGame(false);
+        setGameMode('local'); // Reset to local mode
       }
     }
   }, []);
 
+
+
+  // Poll for game updates in remote mode
+  useEffect(() => {
+    if (remoteGameId && gameMode === 'remote') {
+      const interval = setInterval(() => {
+        fetch(`http://localhost:3001/api/games/${remoteGameId}`)
+          .then(response => response.json())
+          .then(result => {
+            if (result.success) {
+              // Update game state if it has changed
+              setGameState(result.gameState);
+              
+              // If we're in joining mode and the game has started (friend joined), exit joining mode
+              if (isJoiningRemoteGame && result.gameState.gameStarted) {
+                setIsJoiningRemoteGame(false);
+              }
+            }
+          })
+          .catch(error => {
+            console.error('Error polling for game updates:', error);
+          });
+      }, 1000); // Check every 1 second for real-time updates
+
+      return () => clearInterval(interval);
+    }
+  }, [remoteGameId, gameMode, isJoiningRemoteGame]);
+
   // Roll the dice (only unheld dice)
-  const rollDice = () => {
+  const rollDice = async () => {
     if (gameState.rollsLeft > 0 && !isRolling) {
       // Start rolling animation
       setIsRolling(true);
@@ -155,22 +264,59 @@ Note: Database integration will be implemented when we add the server-side API.`
           setIsRolling(false);
           setRollingDice([]);
           
-          // Test features - hidden for production
-          // if (forceYahtzee) {
-          //   // Force Yahtzee mode: manually update state with all 2s
-          //   setGameState(prev => ({
-          //     ...prev,
-          //     dice: prev.dice.map((die, index) => 
-          //       unheldDiceIndices.includes(index) 
-          //         ? { ...die, value: 2 }
-          //         : die
-          //     ),
-          //     rollsLeft: prev.rollsLeft - 1
-          //   }));
-          // } else {
-            // Normal mode: use the engine to roll dice
-            const newState = gameEngine.rollDice();
-            setGameState(newState);
+          // For remote games, send roll action to server
+          if (isJoiningRemoteGame || remoteGameId) {
+              // In remote mode, we need to send the roll action to the server
+              // and get the updated state back
+              const finalDiceValues = gameState.dice.map((die, index) => {
+                if (unheldDiceIndices.includes(index)) {
+                  // Test features - hidden for production
+                  return forceYahtzee ? 2 : Math.floor(Math.random() * 6) + 1;
+                }
+                return die.value;
+              });
+              
+              fetch(`http://localhost:3001/api/games/${remoteGameId}/roll`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                  unheldDiceIndices: unheldDiceIndices,
+                  finalDiceValues: finalDiceValues
+                })
+              })
+              .then(response => response.json())
+              .then(result => {
+                if (result.success) {
+                  setGameState(result.gameState);
+                } else {
+                  console.error('Roll failed:', result.error);
+                }
+              })
+              .catch(error => {
+                console.error('Error rolling dice:', error);
+              });
+            } else {
+              // Local mode: use the engine to roll dice
+              if (forceYahtzee) {
+                // Test features - hidden for production
+                // Force Yahtzee mode: manually update state with all 2s
+                setGameState(prev => ({
+                  ...prev,
+                  dice: prev.dice.map((die, index) => 
+                    unheldDiceIndices.includes(index) 
+                      ? { ...die, value: 2 }
+                      : die
+                  ),
+                  rollsLeft: prev.rollsLeft - 1
+                }));
+              } else {
+                // Normal local mode: use the engine to roll dice
+                const newState = gameEngine.rollDice();
+                setGameState(newState);
+              }
+            }
           // }
         }
       }, interval);
@@ -179,8 +325,31 @@ Note: Database integration will be implemented when we add the server-side API.`
 
   // Toggle whether a die is held
   const toggleDieHold = (index: number) => {
-    const newState = gameEngine.toggleDieHold(index);
-    setGameState(newState);
+    // For remote games, send toggle action to server
+    if (isJoiningRemoteGame || remoteGameId) {
+      fetch(`http://localhost:3001/api/games/${remoteGameId}/toggle-hold`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dieIndex: index })
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          setGameState(result.gameState);
+        } else {
+          console.error('Toggle hold failed:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error toggling die hold:', error);
+      });
+    } else {
+      // Local mode: use the engine to toggle die hold
+      const newState = gameEngine.toggleDieHold(index);
+      setGameState(newState);
+    }
   };
 
   // Check if current dice form a Yahtzee
@@ -217,12 +386,38 @@ Note: Database integration will be implemented when we add the server-side API.`
 
   // Score a category for current player
   const scoreCategory = (category: ScoringCategory) => {
-    const newState = gameEngine.scoreCategory(category);
-    setGameState(newState);
-    
-    // Reset rolling state
-    setIsRolling(false);
-    setRollingDice([]);
+    // For remote games, send score action to server
+    if (isJoiningRemoteGame || remoteGameId) {
+      fetch(`http://localhost:3001/api/games/${remoteGameId}/score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category: category })
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          setGameState(result.gameState);
+          // Reset rolling state
+          setIsRolling(false);
+          setRollingDice([]);
+        } else {
+          console.error('Score failed:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error scoring category:', error);
+      });
+    } else {
+      // Local mode: use the engine to score category
+      const newState = gameEngine.scoreCategory(category);
+      setGameState(newState);
+      
+      // Reset rolling state
+      setIsRolling(false);
+      setRollingDice([]);
+    }
   };
 
   // Get potential score for category (using the shared utility)
@@ -242,10 +437,34 @@ Note: Database integration will be implemented when we add the server-side API.`
 
   // Handle play again
   const handlePlayAgain = () => {
-    const newState = gameEngine.startGame(playerCount, playerNames);
-    setGameState(newState);
-    setIsRolling(false);
-    setRollingDice([]);
+    // For remote games, send play again action to server
+    if (isJoiningRemoteGame || remoteGameId) {
+      fetch(`http://localhost:3001/api/games/${remoteGameId}/play-again`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.success) {
+          setGameState(result.gameState);
+          setIsRolling(false);
+          setRollingDice([]);
+        } else {
+          console.error('Play again failed:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error starting new game:', error);
+      });
+    } else {
+      // Local mode: use the engine to start new game
+      const newState = gameEngine.startGame(playerCount, playerNames);
+      setGameState(newState);
+      setIsRolling(false);
+      setRollingDice([]);
+    }
   };
 
   // Handle start from scratch
@@ -254,11 +473,11 @@ Note: Database integration will be implemented when we add the server-side API.`
     gameEngine.resetHistory();
     
     // Reset all local state to initial values
-    setPlayerCount(1);
-    setPlayerNames(['Player 1']);
-    // setForceYahtzee(false);
-    setIsRolling(false);
-    setRollingDice([]);
+          setPlayerCount(1);
+      setPlayerNames(['Player 1']);
+      setForceYahtzee(false);
+      setIsRolling(false);
+      setRollingDice([]);
     
     // Reset game state to initial setup state
     const initialState = gameEngine.getState();
@@ -276,62 +495,62 @@ Note: Database integration will be implemented when we add the server-side API.`
   };
 
   // Quick test mode - fill in most categories for testing (hidden for production)
-  // const enableQuickTestMode = () => {
-  //   // Create a test game state with most categories filled
-  //   const testPlayers = gameState.players.map((player) => {
-  //     const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
-  //     
-  //     // Fill in all categories except 'chance' with reasonable test scores
-  //     const categories: ScoringCategory[] = [
-  //       'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
-  //       'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
-  //     ];
-  //     
-  //     categories.forEach((category) => {
-  //       // Generate varied but realistic scores
-  //       let score = 0;
-  //       switch (category) {
-  //         case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
-  //         case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
-  //         case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
-  //         case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
-  //         case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
-  //         case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
-  //         case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
-  //         case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
-  //         case 'fullHouse': score = 25; break;
-  //         case 'smallStraight': score = 30; break;
-  //         case 'largeStraight': score = 40; break;
-  //         case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
-  //       }
-  //       testScoreCard[category] = score;
-  //     });
-  //     
-  //     // Add some Yahtzee bonuses for variety
-  //     if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
-  //       testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
-  //     }
-  //     
-  //     return {
-  //       ...player,
-  //       scoreCard: testScoreCard
-  //     };
-  //   });
-  //   
-  //   // Set to final turn with current player having one category left
-  //   const newState = {
-  //     ...gameState,
-  //     players: testPlayers,
-  //     currentTurn: 13,
-  //     currentPlayerIndex: 0,
-  //     rollsLeft: 3,
-  //     dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
-  //   };
-  //   
-  //   // Update both the local state and the engine state
-  //   gameEngine.updateState(newState);
-  //   setGameState(newState);
-  // };
+  const enableQuickTestMode = () => {
+    // Create a test game state with most categories filled
+    const testPlayers = gameState.players.map((player) => {
+      const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
+      
+      // Fill in all categories except 'chance' with reasonable test scores
+      const categories: ScoringCategory[] = [
+        'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
+        'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
+      ];
+      
+      categories.forEach((category) => {
+        // Generate varied but realistic scores
+        let score = 0;
+        switch (category) {
+          case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
+          case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
+          case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
+          case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
+          case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
+          case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
+          case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
+          case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
+          case 'fullHouse': score = 25; break;
+          case 'smallStraight': score = 30; break;
+          case 'largeStraight': score = 40; break;
+          case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
+        }
+        testScoreCard[category] = score;
+      });
+      
+      // Add some Yahtzee bonuses for variety
+      if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
+        testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
+      }
+      
+      return {
+        ...player,
+        scoreCard: testScoreCard
+      };
+    });
+    
+    // Set to final turn with current player having one category left
+    const newState = {
+      ...gameState,
+      players: testPlayers,
+      currentTurn: 13,
+      currentPlayerIndex: 0,
+      rollsLeft: 3,
+      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
+    };
+    
+    // Update both the local state and the engine state
+    gameEngine.updateState(newState);
+    setGameState(newState);
+  };
 
   // Handle player count change
   const handlePlayerCountChange = (count: number) => {
@@ -387,6 +606,23 @@ Note: Database integration will be implemented when we add the server-side API.`
             🎲 Yahtzee Challenge
           </h1>
 
+          {/* Game Link Error Message */}
+          {gameLinkError && (
+            <div style={{
+              marginBottom: '2rem',
+              textAlign: 'center'
+            }}>
+              <p style={{
+                fontSize: '1rem',
+                color: '#e5e7eb',
+                margin: 0,
+                fontFamily: '"Georgia", "Times New Roman", serif'
+              }}>
+                {gameLinkError}
+              </p>
+            </div>
+          )}
+
           <div style={{ 
             backgroundColor: 'rgba(255,255,255,0.1)', 
             padding: '2rem', 
@@ -407,9 +643,6 @@ Note: Database integration will be implemented when we add the server-side API.`
                 </h2>
                 <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>
                   You've created a remote Yahtzee game.
-                </p>
-                <p style={{ fontSize: '0.9rem', color: '#d1d5db' }}>
-                  Game ID: {remoteGameId}
                 </p>
                 <div style={{ 
                   marginTop: '2rem', 
@@ -436,7 +669,7 @@ Note: Database integration will be implemented when we add the server-side API.`
                   Join the Game
                 </h2>
                 <p style={{ marginBottom: '1.5rem', textAlign: 'center', fontSize: '1.1rem' }}>
-                  You've been invited to play Yahtzee!
+                  You've been invited to play Yahtzee by {gameState.players[0]?.name || 'a friend'}!
                 </p>
                 
                 <div style={{ marginBottom: '2rem' }}>
@@ -486,14 +719,7 @@ Note: Database integration will be implemented when we add the server-side API.`
                   </button>
                 </div>
 
-                <div style={{ 
-                  marginTop: '1rem', 
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  textAlign: 'center'
-                }}>
-                  Game ID: {remoteGameId}
-                </div>
+                
               </div>
             )}
           </div>
@@ -542,6 +768,23 @@ Note: Database integration will be implemented when we add the server-side API.`
             }}>
               Game Setup
             </h2>
+
+            {/* Error Message for Invalid Game Links */}
+            {gameLinkError && (
+              <div style={{
+                marginBottom: '2rem',
+                textAlign: 'center'
+              }}>
+                <p style={{
+                  fontSize: '1rem',
+                  color: '#e5e7eb',
+                  margin: 0,
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  {gameLinkError}
+                </p>
+              </div>
+            )}
 
             {/* Game Mode Selection */}
             <div style={{ marginBottom: '2rem' }}>
@@ -606,7 +849,7 @@ Note: Database integration will be implemented when we add the server-side API.`
                   Number of Players:
                 </h3>
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                  {[1, 2, 3, 4].map(count => (
+                  {[1, 2, 3, 4, 5, 6].map(count => (
                     <button
                       key={count}
                       onClick={() => handlePlayerCountChange(count)}
@@ -818,7 +1061,10 @@ Note: Database integration will be implemented when we add the server-side API.`
                       borderRadius: '0.25rem',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
-                      <strong>GAME {result.gameNumber}:</strong> {result.winner} ({result.players.find(p => p.name === result.winner)?.score}) beat {result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}
+                      <strong>GAME {result.gameNumber}:</strong> {result.players.length === 1 
+                        ? `${result.winner} scored ${result.players.find(p => p.name === result.winner)?.score} points`
+                        : `${result.winner} (${result.players.find(p => p.name === result.winner)?.score}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}`
+                      }
                     </div>
                   ))}
                 </div>
@@ -845,7 +1091,7 @@ Note: Database integration will be implemented when we add the server-side API.`
               <button
                 onClick={handleStartFromScratch}
                 style={{ 
-                  backgroundColor: '#dc2626',
+                  backgroundColor: '#6b7280',
                   padding: '1rem 2rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
@@ -866,6 +1112,8 @@ Note: Database integration will be implemented when we add the server-side API.`
   }
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+
+
 
   return (
     <div style={{ 
@@ -891,6 +1139,23 @@ Note: Database integration will be implemented when we add the server-side API.`
         }}>
           🎲 Yahtzee Clone 🎲
         </h1>
+
+        {/* Game Link Error Message */}
+        {gameLinkError && (
+          <div style={{
+            marginBottom: '2rem',
+            textAlign: 'center'
+          }}>
+            <p style={{
+              fontSize: '1rem',
+              color: '#e5e7eb',
+              margin: 0,
+              fontFamily: '"Georgia", "Times New Roman", serif'
+            }}>
+              {gameLinkError}
+            </p>
+          </div>
+        )}
         
 
 
@@ -958,7 +1223,21 @@ Note: Database integration will be implemented when we add the server-side API.`
               {gameState.dice.map((die, index) => (
                 <div 
                   key={index}
-                  onClick={() => !isRolling && gameState.rollsLeft < 3 && gameState.rollsLeft > 0 && toggleDieHold(index)}
+                  onClick={() => {
+                    const isCurrentUserTurn = (() => {
+                      if (gameMode === 'local') {
+                        return true; // In local mode, all players can act
+                      } else {
+                        // In remote mode, determine which player this user is
+                        const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                        return currentUserPlayerIndex === gameState.currentPlayerIndex;
+                      }
+                    })();
+                    
+                    if (!isRolling && gameState.rollsLeft < 3 && gameState.rollsLeft > 0 && isCurrentUserTurn) {
+                      toggleDieHold(index);
+                    }
+                  }}
                   style={{
                     width: '3.5rem',
                     height: '3.5rem',
@@ -969,7 +1248,19 @@ Note: Database integration will be implemented when we add the server-side API.`
                     justifyContent: 'center',
                     fontSize: '1.25rem',
                     fontWeight: 'bold',
-                    cursor: (isRolling || gameState.rollsLeft === 3 || gameState.rollsLeft === 0) ? 'not-allowed' : 'pointer',
+                    cursor: (() => {
+                      const isCurrentUserTurn = (() => {
+                        if (gameMode === 'local') {
+                          return true; // In local mode, all players can act
+                        } else {
+                          // In remote mode, determine which player this user is
+                          const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                          return currentUserPlayerIndex === gameState.currentPlayerIndex;
+                        }
+                      })();
+                      
+                      return (isRolling || gameState.rollsLeft === 3 || gameState.rollsLeft === 0 || !isCurrentUserTurn) ? 'not-allowed' : 'pointer';
+                    })(),
                     border: die.isHeld ? '4px solid #f59e0b' : '2px solid #d1d5db',
                     boxShadow: die.isHeld 
                       ? '0 8px 16px rgba(245, 158, 11, 0.4), inset 0 2px 4px rgba(255,255,255,0.8)' 
@@ -1026,34 +1317,78 @@ Note: Database integration will be implemented when we add the server-side API.`
                 </div>
               ))}
             </div>
-            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-              <button 
-                onClick={rollDice}
-                disabled={gameState.rollsLeft === 0 || isRolling}
-                style={{ 
-                  backgroundColor: (gameState.rollsLeft === 0 || isRolling) ? '#6b7280' : '#fbbf24',
-                  padding: '0.75rem 1.5rem',
-                  borderRadius: '0.5rem',
-                  fontWeight: '600',
-                  fontSize: '1.125rem',
-                  border: 'none',
-                  cursor: (gameState.rollsLeft === 0 || isRolling) ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                  fontFamily: '"Georgia", "Times New Roman", serif',
-                  marginBottom: '1rem'
-                }}
-              >
-                {isRolling ? '🎲 Rolling...' : '🎲 Roll Dice'}
-              </button>
-            </div>
+            {/* Determine if current user is the active player */}
+            {(() => {
+              const isCurrentUserTurn = (() => {
+                if (gameMode === 'local') {
+                  return true; // In local mode, all players can act
+                } else {
+                  // In remote mode, determine which player this user is
+                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                  return currentUserPlayerIndex === gameState.currentPlayerIndex;
+                }
+              })();
+
+              if (!isCurrentUserTurn) {
+                // Show waiting message when it's not the current user's turn
+                const activePlayerName = gameState.players[gameState.currentPlayerIndex]?.name || 'the other player';
+                return (
+                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                    <div style={{ 
+                      padding: '1rem',
+                      backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                      borderRadius: '0.5rem',
+                      border: '1px solid rgba(251, 191, 36, 0.3)',
+                      marginBottom: '1rem'
+                    }}>
+                      <p style={{ 
+                        fontSize: '1.1rem', 
+                        color: '#fbbf24', 
+                        fontWeight: '600',
+                        margin: 0,
+                        fontFamily: '"Georgia", "Times New Roman", serif'
+                      }}>
+                        Waiting for {activePlayerName} to finish their turn...
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Show game controls when it's the current user's turn
+              return (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                    <button 
+                      onClick={rollDice}
+                      disabled={gameState.rollsLeft === 0 || isRolling}
+                      style={{ 
+                        backgroundColor: (gameState.rollsLeft === 0 || isRolling) ? '#6b7280' : '#fbbf24',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '0.5rem',
+                        fontWeight: '600',
+                        fontSize: '1.125rem',
+                        border: 'none',
+                        cursor: (gameState.rollsLeft === 0 || isRolling) ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        fontFamily: '"Georgia", "Times New Roman", serif',
+                        marginBottom: '1rem'
+                      }}
+                    >
+                      {isRolling ? '🎲 Rolling...' : '🎲 Roll Dice'}
+                    </button>
+                  </div>
+                  
+                  <p style={{ textAlign: 'center', fontSize: '1rem', color: '#e5e7eb', fontFamily: '"Georgia", "Times New Roman", serif' }}>
+                    {gameState.rollsLeft === 3 ? 'Roll dice to start your turn' : 
+                     gameState.rollsLeft === 0 ? 'Select a category to score' :
+                     'Click dice to hold/unhold them • Held dice are highlighted with 🔒'}
+                  </p>
+                </>
+              );
+            })()}
             
-            <p style={{ textAlign: 'center', fontSize: '1rem', color: '#e5e7eb', fontFamily: '"Georgia", "Times New Roman", serif' }}>
-              {gameState.rollsLeft === 3 ? 'Roll dice to start your turn' : 
-               gameState.rollsLeft === 0 ? 'Select a category to score' :
-               'Click dice to hold/unhold them • Held dice are highlighted with 🔒'}
-            </p>
-            
-            {/* Test Features - Hidden for production
+            {/* Test Features - Hidden for production */}
             {gameState.gameStarted && !gameState.gameComplete && (
               <div style={{ textAlign: 'center', marginTop: '1rem' }}>
                 <div style={{ marginBottom: '1rem' }}>
@@ -1116,7 +1451,7 @@ Note: Database integration will be implemented when we add the server-side API.`
                 </div>
               </div>
             )}
-            */}
+
           </div>
 
           {/* Player Score Cards */}
@@ -1131,6 +1466,20 @@ Note: Database integration will be implemented when we add the server-side API.`
               const displayIndex = (playerIndex + gameState.currentPlayerIndex) % gameState.players.length;
               const displayPlayer = gameState.players[displayIndex];
               const isActivePlayer = displayIndex === gameState.currentPlayerIndex;
+              
+              // Determine if current user is the active player
+              const isCurrentUserTurn = (() => {
+                if (gameMode === 'local') {
+                  return true; // In local mode, all players can act
+                } else {
+                  // In remote mode, determine which player this user is
+                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                  return currentUserPlayerIndex === gameState.currentPlayerIndex;
+                }
+              })();
+              
+              // Only show active player's score sheet as interactive if it's the current user's turn
+              const isInteractive = isActivePlayer && isCurrentUserTurn;
               
               return (
                               <div key={displayPlayer.id} style={{ 
@@ -1209,11 +1558,15 @@ Note: Database integration will be implemented when we add the server-side API.`
                              </span>
                            )}
                           <button
-                            onClick={() => isActivePlayer && scoreCategory(category)}
-                                                          disabled={(() => {
-                                if (!isActivePlayer || isCategoryUsed(displayPlayer, category) || gameState.rollsLeft === 3) {
-                                  return true;
-                                }
+                            onClick={() => {
+                              if (isInteractive) {
+                                scoreCategory(category);
+                              }
+                            }}
+                                                                                      disabled={(() => {
+                              if (!isInteractive || isCategoryUsed(displayPlayer, category) || gameState.rollsLeft === 3) {
+                                return true;
+                              }
                                 // For joker Yahtzee, enforce priority order
                                 if (isActivePlayer && shouldShowYahtzeeBonus()) {
                                 const upperCategory = `${gameState.dice[0].value === 1 ? 'ones' : gameState.dice[0].value === 2 ? 'twos' : gameState.dice[0].value === 3 ? 'threes' : gameState.dice[0].value === 4 ? 'fours' : gameState.dice[0].value === 5 ? 'fives' : 'sixes'}` as ScoringCategory;
@@ -1259,11 +1612,11 @@ Note: Database integration will be implemented when we add the server-side API.`
                               fontWeight: '600',
                               minWidth: '40px',
                               border: 'none',
-                              cursor: isActivePlayer && !isCategoryUsed(displayPlayer, category) && gameState.rollsLeft !== 3 ? 'pointer' : 'not-allowed',
-                                                              backgroundColor: (() => {
-                                  if (isCategoryUsed(displayPlayer, category) || !isActivePlayer || gameState.rollsLeft === 3) {
-                                    return '#d1d5db';
-                                  }
+                              cursor: isInteractive && !isCategoryUsed(displayPlayer, category) && gameState.rollsLeft !== 3 ? 'pointer' : 'not-allowed',
+                                                                                            backgroundColor: (() => {
+                                if (isCategoryUsed(displayPlayer, category) || !isInteractive || gameState.rollsLeft === 3) {
+                                  return '#d1d5db';
+                                }
                                   // Highlight valid categories for joker scoring
                                   if (isActivePlayer && shouldShowYahtzeeBonus()) {
                                   const upperCategory = `${gameState.dice[0].value === 1 ? 'ones' : gameState.dice[0].value === 2 ? 'twos' : gameState.dice[0].value === 3 ? 'threes' : gameState.dice[0].value === 4 ? 'fours' : gameState.dice[0].value === 5 ? 'fives' : 'sixes'}` as ScoringCategory;
@@ -1377,11 +1730,15 @@ Note: Database integration will be implemented when we add the server-side API.`
                              </span>
                            )}
                           <button
-                            onClick={() => isActivePlayer && scoreCategory(key)}
-                            disabled={(() => {
-                              if (!isActivePlayer || isCategoryUsed(displayPlayer, key) || gameState.rollsLeft === 3) {
-                                return true;
+                            onClick={() => {
+                              if (isInteractive) {
+                                scoreCategory(key);
                               }
+                            }}
+                                                          disabled={(() => {
+                                if (!isInteractive || isCategoryUsed(displayPlayer, key) || gameState.rollsLeft === 3) {
+                                  return true;
+                                }
                               // For joker Yahtzee, enforce priority order
                               if (isActivePlayer && shouldShowYahtzeeBonus()) {
                                 const upperCategory = `${gameState.dice[0].value === 1 ? 'ones' : gameState.dice[0].value === 2 ? 'twos' : gameState.dice[0].value === 3 ? 'threes' : gameState.dice[0].value === 4 ? 'fours' : gameState.dice[0].value === 5 ? 'fives' : 'sixes'}` as ScoringCategory;
@@ -1427,9 +1784,9 @@ Note: Database integration will be implemented when we add the server-side API.`
                               fontWeight: '600',
                               minWidth: '40px',
                               border: 'none',
-                              cursor: isActivePlayer && !isCategoryUsed(displayPlayer, key) && gameState.rollsLeft !== 3 ? 'pointer' : 'not-allowed',
+                              cursor: isInteractive && !isCategoryUsed(displayPlayer, key) && gameState.rollsLeft !== 3 ? 'pointer' : 'not-allowed',
                               backgroundColor: (() => {
-                                if (isCategoryUsed(displayPlayer, key) || !isActivePlayer || gameState.rollsLeft === 3) {
+                                if (isCategoryUsed(displayPlayer, key) || !isInteractive || gameState.rollsLeft === 3) {
                                   return '#d1d5db';
                                 }
                                 // Highlight valid categories for joker scoring
