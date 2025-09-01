@@ -204,7 +204,12 @@ export const isGameComplete = (gameState) => {
  * Get the winner of the game
  */
 export const getWinner = (gameState) => {
-  return gameState.players.reduce((winner, player) => 
-    getTotalScore(player) > getTotalScore(winner) ? player : winner
-  );
+  if (!gameState.players || gameState.players.length === 0) {
+    return null;
+  }
+  
+  return gameState.players.reduce((winner, player) => {
+    if (!winner) return player;
+    return getTotalScore(player) > getTotalScore(winner) ? player : winner;
+  }, null);
 };

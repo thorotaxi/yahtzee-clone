@@ -94,15 +94,16 @@ app.post('/api/games/:gameId/join', (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    // Add friend to the game
+    // Add friend to the game - friend should be player 0 (first player)
     const updatedGameState = {
       ...existingGameState,
       players: [
-        ...existingGameState.players,
-        { id: existingGameState.players.length + 1, name: friendName.trim(), scoreCard: {}, isActive: true }
+        { id: 1, name: friendName.trim(), scoreCard: {}, isActive: true },
+        ...existingGameState.players
       ],
       gameStarted: true,
-      currentPlayerIndex: 1 // Friend goes first
+      currentPlayerIndex: 0, // Friend goes first (as player 0)
+      currentTurn: 1 // Start at turn 1
     };
 
     // Update database
@@ -216,17 +217,23 @@ app.post('/api/games/:gameId/score', (req, res) => {
     const { gameId } = req.params;
     const { category } = req.body;
     
+    console.log(`Scoring category ${category} for game ${gameId}`);
+    
     // Load current game state
     const currentGameState = dbManager.loadGame(gameId);
     if (!currentGameState) {
       return res.status(404).json({ error: 'Game not found' });
     }
     
+    console.log('Current game state:', JSON.stringify(currentGameState, null, 2));
+    
     // Use the RemoteGameEngine to handle scoring logic
     const remoteEngine = new RemoteGameEngine(gameId, dbManager);
     
     // Score the category
     const updatedGameState = remoteEngine.scoreCategory(category);
+    
+    console.log('Updated game state:', JSON.stringify(updatedGameState, null, 2));
     
     // Update database
     dbManager.updateGame(gameId, updatedGameState);
@@ -238,6 +245,8 @@ app.post('/api/games/:gameId/score', (req, res) => {
   } catch (error) {
     console.error('Error scoring category:', error);
     console.error('Error stack:', error.stack);
+    console.error('Game ID:', req.params.gameId);
+    console.error('Category:', req.body.category);
     res.status(500).json({ 
       error: 'Failed to score category',
       details: error.message,
@@ -258,10 +267,14 @@ app.post('/api/games/:gameId/play-again', (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
     
-    // Use the RemoteGameEngine to handle play again logic
+    // Get the previous game result before starting new game
+    const gameHistory = dbManager.getGameHistory(gameId);
+    const previousGameResult = gameHistory.length > 0 ? gameHistory[gameHistory.length - 1] : null;
+    
+    // Load the existing engine to preserve game number
     const remoteEngine = new RemoteGameEngine(gameId, dbManager);
     
-    // Start a new game with the same players
+    // Start a new game with the same players (this will increment game number)
     const playerNames = currentGameState.players.map(p => p.name);
     const updatedGameState = remoteEngine.startGame(playerNames.length, playerNames);
     
@@ -271,6 +284,12 @@ app.post('/api/games/:gameId/play-again', (req, res) => {
     res.json({ 
       success: true, 
       gameState: updatedGameState,
+      previousGameResult: previousGameResult ? {
+        winner: previousGameResult.winner_name,
+        winnerScore: previousGameResult.winner_score,
+        loser: previousGameResult.players.find(p => p.name !== previousGameResult.winner_name)?.name || 'Unknown',
+        loserScore: previousGameResult.players.find(p => p.name !== previousGameResult.winner_name)?.score || 0
+      } : null,
       message: 'New game started successfully' 
     });
   } catch (error) {
@@ -334,21 +353,36 @@ app.delete('/api/games/cleanup', (req, res) => {
   }
 });
 
-// Set up file logging
-import fs from 'fs';
-const logToFile = (message) => {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
-  fs.appendFileSync('server.log', logMessage);
-};
+// Clear all games from database
+app.delete('/api/games/clear-all', (req, res) => {
+  try {
+    const deletedCount = dbManager.clearAllGames();
+    res.json({ 
+      success: true, 
+      deletedCount,
+      message: `Cleared all games: ${deletedCount} games removed` 
+    });
+  } catch (error) {
+    console.error('Error clearing all games:', error);
+    res.status(500).json({ error: 'Failed to clear all games' });
+  }
+});
 
-// Replace console.log with our logging function
-const originalConsoleLog = console.log;
-console.log = (...args) => {
-  const message = args.join(' ');
-  logToFile(message);
-  originalConsoleLog(...args);
-};
+// Set up file logging (disabled for now)
+// import fs from 'fs';
+// const logToFile = (message) => {
+//   const timestamp = new Date().toISOString();
+//   const logMessage = `[${timestamp}] ${message}\n`;
+//   fs.appendFileSync('server.log', logMessage);
+// };
+
+// Replace console.log with our logging function (disabled for now)
+// const originalConsoleLog = console.log;
+// console.log = (...args) => {
+//   const message = args.join(' ');
+//   logToFile(message);
+//   originalConsoleLog(...args);
+// };
 
 // Set up daily cleanup (runs every 24 hours)
 const setupDailyCleanup = () => {
@@ -373,8 +407,6 @@ const setupDailyCleanup = () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Yahtzee Server running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/health`);
-  console.log(`📝 Logs will be written to server.log`);
   
   // Set up daily cleanup
   setupDailyCleanup();

@@ -320,6 +320,20 @@ export class DatabaseManager {
   }
 
   /**
+   * Clear all games from the database
+   */
+  clearAllGames() {
+    // Delete all data from all tables
+    this.db.prepare('DELETE FROM history_player_scores').run();
+    this.db.prepare('DELETE FROM game_history').run();
+    this.db.prepare('DELETE FROM score_cards').run();
+    this.db.prepare('DELETE FROM players').run();
+    const result = this.db.prepare('DELETE FROM games').run();
+    
+    return result.changes;
+  }
+
+  /**
    * Close database connection
    */
   close() {

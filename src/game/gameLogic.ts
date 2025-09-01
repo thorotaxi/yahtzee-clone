@@ -203,8 +203,13 @@ export const isGameComplete = (gameState: GameState): boolean => {
 /**
  * Get the winner of the game
  */
-export const getWinner = (gameState: GameState): Player => {
-  return gameState.players.reduce((winner, player) => 
-    getTotalScore(player) > getTotalScore(winner) ? player : winner
-  );
+export const getWinner = (gameState: GameState): Player | null => {
+  if (!gameState.players || gameState.players.length === 0) {
+    return null;
+  }
+  
+  return gameState.players.reduce((winner, player) => {
+    if (!winner) return player;
+    return getTotalScore(player) > getTotalScore(winner) ? player : winner;
+  }, null as Player | null);
 };

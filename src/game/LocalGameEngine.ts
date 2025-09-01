@@ -26,7 +26,7 @@ export class LocalGameEngine implements GameEngine {
       rollsLeft: 3,
       players: [],
       currentPlayerIndex: 0,
-      currentTurn: 1,
+              currentTurn: 1,
       gameComplete: false,
       gameStarted: false
     };
@@ -170,6 +170,9 @@ export class LocalGameEngine implements GameEngine {
       if (nextPlayerIndex === 0) {
         nextTurn++;
       }
+    } else {
+      // Game is complete, don't increment turn further
+      nextTurn = 13;
     }
     
     this.state = {
@@ -184,16 +187,19 @@ export class LocalGameEngine implements GameEngine {
     
     // If game is complete, add to history
     if (gameComplete) {
-      this.addGameResult({
-        gameNumber: this.gameNumber,
-        players: this.state.players.map(player => ({
-          name: player.name,
-          score: getTotalScore(player)
-        })),
-        winner: getWinner(this.state).name,
-        timestamp: new Date()
-      });
-      this.gameNumber++;
+      const winner = getWinner(this.state);
+      if (winner && winner.name) {
+        this.addGameResult({
+          gameNumber: this.gameNumber,
+          players: this.state.players.map(player => ({
+            name: player.name,
+            score: getTotalScore(player)
+          })),
+          winner: winner.name,
+          timestamp: new Date()
+        });
+        this.gameNumber++;
+      }
     }
     
     return this.state;

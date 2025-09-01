@@ -20,13 +20,452 @@ function App() {
   const [remotePlayerType, setRemotePlayerType] = useState<'creator' | 'friend' | null>(null);
   const [isJoiningRemoteGame, setIsJoiningRemoteGame] = useState(false);
   const [gameLinkError, setGameLinkError] = useState<string | null>(null);
+  
+  // Form validation states
+  const [nameError, setNameError] = useState<string | null>(null);
+  // Remote game history for displaying previous games in the series
+  const [remoteGameHistory, setRemoteGameHistory] = useState<Array<{
+    gameNumber: number;
+    winner: string;
+    winnerScore: number;
+    totalPlayers: number;
+    completedAt: string;
+    players: Array<{ name: string; score: number }>;
+  }>>([]);
+  
+  // Previous game result for remote mode "Play Again" notifications
+  const [previousGameResult, setPreviousGameResult] = useState<{
+    winner: string;
+    winnerScore: number;
+    loser: string;
+    loserScore: number;
+  } | null>(null);
   // Test features - hidden for production
-  const [forceYahtzee, setForceYahtzee] = useState(false);
+  // const [forceYahtzee, setForceYahtzee] = useState(false);
+
+  // Notification system
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    type: 'success' | 'error' | 'info';
+    message: string;
+    duration?: number;
+  }>>([]);
+
+  const addNotification = (type: 'success' | 'error' | 'info', message: string, duration: number = 5000) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const newNotification = { id, type, message, duration };
+    setNotifications(prev => [...prev, newNotification]);
+    
+    if (duration > 0) {
+      setTimeout(() => {
+        removeNotification(id);
+      }, duration);
+    }
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Notification component
+  const NotificationSystem = () => (
+    <div style={{
+      position: 'fixed',
+      top: '1rem',
+      right: '1rem',
+      left: '1rem',
+      zIndex: 2000,
+      maxWidth: '400px',
+      margin: '0 auto'
+    }}>
+      {notifications.map(notification => (
+        <div
+          key={notification.id}
+          style={{
+            backgroundColor: notification.type === 'success' ? '#10b981' : 
+                           notification.type === 'error' ? '#ef4444' : '#3b82f6',
+            color: 'white',
+            padding: '1rem',
+            borderRadius: '0.5rem',
+            marginBottom: '0.5rem',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            border: '2px solid rgba(255,255,255,0.2)',
+            fontFamily: '"Georgia", "Times New Roman", serif',
+            fontSize: '0.9rem',
+            lineHeight: '1.4',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            transform: 'translateX(0)',
+            opacity: 1
+          }}
+          onClick={() => removeNotification(notification.id)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateX(-5px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateX(0)';
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '0.5rem'
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontWeight: 'bold',
+                marginBottom: '0.25rem',
+                fontSize: '1rem'
+              }}>
+                {notification.type === 'success' ? '✅ Success' : 
+                 notification.type === 'error' ? '❌ Error' : 'ℹ️ Info'}
+              </div>
+              <div>{notification.message}</div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                removeNotification(notification.id);
+              }}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Tip component for all screens
+  const TipComponent = () => {
+    const [showCustomModal, setShowCustomModal] = useState(false);
+    const [customAmount, setCustomAmount] = useState('');
+    const [customAmountError, setCustomAmountError] = useState('');
+
+    const handleCustomTip = () => {
+      const amount = parseFloat(customAmount);
+      if (isNaN(amount) || amount <= 0) {
+        setCustomAmountError('Please enter a valid amount greater than 0');
+        return;
+      }
+      
+             // Open Venmo with custom amount
+       window.open(`https://venmo.com/Thor-Odhner?txn=pay&note=Yahtzee%20Tip%20$${amount}&amount=${amount}`, '_blank');
+      
+      // Reset and close modal
+      setCustomAmount('');
+      setCustomAmountError('');
+      setShowCustomModal(false);
+    };
+
+    const openCustomModal = () => {
+      setShowCustomModal(true);
+      setCustomAmount('');
+      setCustomAmountError('');
+    };
+
+    return (
+      <>
+        <div style={{
+          marginTop: '3rem',
+          padding: '2rem',
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          borderRadius: '0.75rem',
+          border: '1px solid rgba(255,255,255,0.1)',
+          textAlign: 'center',
+          maxWidth: '600px',
+          margin: '3rem auto 0'
+        }}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            color: '#fbbf24',
+            fontFamily: '"Georgia", "Times New Roman", serif'
+          }}>
+            💝 Leave a Tip
+          </h3>
+          <p style={{
+            fontSize: '0.9rem',
+            color: '#e5e7eb',
+            marginBottom: '1.5rem',
+            lineHeight: '1.5',
+            fontFamily: '"Georgia", "Times New Roman", serif'
+          }}>
+            This project is free, ad-free, open source, and privacy conscious. 
+            Consider an optional tip to help cover dev and hosting costs. 
+            Any amount is appreciated!
+          </p>
+          
+          <div style={{
+            display: 'flex',
+            gap: '0.75rem',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            marginBottom: '1rem'
+          }}>
+            {[2, 5, 10].map(amount => (
+              <button
+                key={amount}
+                onClick={() => window.open(`https://venmo.com/Thor-Odhner?txn=pay&note=Yahtzee%20Tip%20$${amount}&amount=${amount}`, '_blank')}
+                style={{
+                  backgroundColor: '#fbbf24',
+                  color: '#1f2937',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '0.5rem',
+                  fontWeight: '600',
+                  fontSize: '1rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  fontFamily: '"Georgia", "Times New Roman", serif',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+                }}
+              >
+                ${amount}
+              </button>
+            ))}
+            <button
+              onClick={openCustomModal}
+              style={{
+                backgroundColor: '#6b7280',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '0.5rem',
+                fontWeight: '600',
+                fontSize: '1rem',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                fontFamily: '"Georgia", "Times New Roman", serif',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+              }}
+            >
+              Other
+            </button>
+          </div>
+          
+          <div style={{
+            fontSize: '0.75rem',
+            color: '#9ca3af',
+            fontStyle: 'italic',
+            fontFamily: '"Georgia", "Times New Roman", serif'
+          }}>
+            💳 Venmo: @Thor-Odhner
+          </div>
+        </div>
+
+        {/* Custom Amount Modal */}
+        {showCustomModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}>
+            <div style={{
+              backgroundColor: '#14532d',
+              padding: '2rem',
+              borderRadius: '0.75rem',
+              border: '2px solid #fbbf24',
+              maxWidth: '400px',
+              width: '100%',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+              fontFamily: '"Georgia", "Times New Roman", serif'
+            }}>
+              <h3 style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                marginBottom: '1.5rem',
+                textAlign: 'center',
+                color: '#fbbf24',
+                fontFamily: '"Georgia", "Times New Roman", serif'
+              }}>
+                💝 Custom Tip Amount
+              </h3>
+              
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontWeight: '500',
+                  marginBottom: '0.5rem',
+                  fontSize: '1rem',
+                  color: 'white',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  Enter tip amount:
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <span style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 'bold',
+                    color: '#fbbf24',
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}>
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    value={customAmount}
+                    onChange={(e) => {
+                      setCustomAmount(e.target.value);
+                      if (customAmountError) setCustomAmountError('');
+                    }}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleCustomTip();
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      border: customAmountError ? '2px solid #ef4444' : '2px solid #fbbf24',
+                      fontSize: '1.125rem',
+                      fontFamily: '"Georgia", "Times New Roman", serif',
+                      backgroundColor: 'white',
+                      color: '#1f2937',
+                      outline: 'none'
+                    }}
+                    placeholder="0.00"
+                    min="0.01"
+                    step="0.01"
+                    autoFocus
+                  />
+                </div>
+                {customAmountError && (
+                  <p style={{
+                    color: '#ef4444',
+                    fontSize: '0.875rem',
+                    marginTop: '0.5rem',
+                    margin: 0,
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}>
+                    {customAmountError}
+                  </p>
+                )}
+              </div>
+
+              <div style={{
+                display: 'flex',
+                gap: '1rem',
+                justifyContent: 'center'
+              }}>
+                <button
+                  onClick={() => {
+                    setShowCustomModal(false);
+                    setCustomAmount('');
+                    setCustomAmountError('');
+                  }}
+                  style={{
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '1rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    fontFamily: '"Georgia", "Times New Roman", serif',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCustomTip}
+                  style={{
+                    backgroundColor: '#fbbf24',
+                    color: '#1f2937',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '1rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    fontFamily: '"Georgia", "Times New Roman", serif',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  Send Tip
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
 
   // Join a remote game (for invited friend)
   const joinRemoteGame = async (friendName: string) => {
+    // Clear previous errors and game results
+    setNameError(null);
+    setPreviousGameResult(null);
+    
     if (!remoteGameId || !friendName.trim()) {
-      alert('Please enter your name to join the game.');
+      setNameError('Please enter your name to join the game.');
       return;
     }
 
@@ -56,17 +495,19 @@ function App() {
       setIsRolling(false);
       setRollingDice([]);
 
-      alert(`Successfully joined the game as ${friendName}! You go first.`);
+      addNotification('success', `Successfully joined the game as ${friendName}! You go first.`);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Failed to join the game: ${errorMessage}`);
+      addNotification('error', `Failed to join the game: ${errorMessage}`);
       console.error('Error joining remote game:', error);
     }
   };
 
   // Start the game
   const startGame = async () => {
+    // Clear any previous game result when starting a new game
+    setPreviousGameResult(null);
     if (gameMode === 'local') {
       const newState = gameEngine.startGame(playerCount, playerNames);
       setGameState(newState);
@@ -77,7 +518,7 @@ function App() {
     } else {
       // Remote game creation
       if (!playerNames[0] || playerNames[0].trim() === '') {
-        alert('Please enter your name to create a remote game.');
+        setNameError('Please enter your name to create a remote game.');
         return;
       }
       
@@ -121,18 +562,31 @@ ${creatorName}'s link is: ${creatorLink}
 
 Be sure to click your own link. Either of you can return to this message to resume your game at any time.`;
 
-        // Copy to clipboard and show to user
+                // Copy to clipboard and show to user
         navigator.clipboard.writeText(inviteText).then(() => {
-          alert(`Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
+          // Navigate to the creator's personal URL to show the waiting screen
+          const creatorGameId = `${baseGameId}_creator`;
+          const creatorUrl = `${window.location.origin}?game=${creatorGameId}`;
+          
+          // Update the URL without reloading the page
+          window.history.pushState({}, '', creatorUrl);
+          
+          // Set the remote game state to trigger the waiting screen
+          setRemoteGameId(baseGameId);
+          setRemotePlayerType('creator');
+          setIsJoiningRemoteGame(true);
+          
+          addNotification('success', `Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
 
-The invite contains one link for your friend and one for you (in case you leave and want to return later).`);
+ The invite contains one link for your friend and one for you (in case you leave and want to return later).`, 0);
         }).catch(() => {
           // Fallback if clipboard API fails
+          addNotification('error', 'Clipboard access failed. Please copy the invite text manually.');
           prompt('Copy this invite text and send it to your friend:', inviteText);
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        alert(`Failed to create remote game: ${errorMessage}`);
+        addNotification('error', `Failed to create remote game: ${errorMessage}`);
         console.error('Error creating remote game:', error);
       }
     }
@@ -142,7 +596,18 @@ The invite contains one link for your friend and one for you (in case you leave 
   const generateGameId = (): string => {
     return 'game_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
   };
-
+  // Fetch remote game history
+  const fetchRemoteGameHistory = async (gameId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/games/${gameId}/history`);
+      const result = await response.json();
+      if (result.success) {
+        setRemoteGameHistory(result.history);
+      }
+    } catch (error) {
+      console.error('Error fetching game history:', error);
+    }
+  };
   // Check for URL parameters on app load
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -208,6 +673,30 @@ The invite contains one link for your friend and one for you (in case you leave 
           .then(response => response.json())
           .then(result => {
             if (result.success) {
+              // Check if this is a new game (detected by checking if currentTurn is 1 and rollsLeft is 3)
+              const isNewGame = result.gameState.currentTurn === 1 && result.gameState.rollsLeft === 3 && 
+                               !result.gameState.gameComplete && result.gameState.gameStarted;
+              
+              // If this is a new game and we were previously in a completed game, fetch the previous game result
+              if (isNewGame && gameState.gameComplete) {
+                // Fetch the previous game result from the server
+                fetch(`http://localhost:3001/api/games/${remoteGameId}/play-again`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                })
+                .then(response => response.json())
+                .then(playAgainResult => {
+                  if (playAgainResult.success && playAgainResult.previousGameResult) {
+                    setPreviousGameResult(playAgainResult.previousGameResult);
+                  }
+                })
+                .catch(error => {
+                  console.error('Error fetching previous game result:', error);
+                });
+              }
+              
               // Update game state if it has changed
               setGameState(result.gameState);
               
@@ -225,7 +714,12 @@ The invite contains one link for your friend and one for you (in case you leave 
       return () => clearInterval(interval);
     }
   }, [remoteGameId, gameMode, isJoiningRemoteGame]);
-
+  // Fetch remote game history when game is complete
+  useEffect(() => {
+    if (remoteGameId && gameState.gameComplete) {
+      fetchRemoteGameHistory(remoteGameId);
+    }
+  }, [remoteGameId, gameState.gameComplete]);
   // Roll the dice (only unheld dice)
   const rollDice = async () => {
     if (gameState.rollsLeft > 0 && !isRolling) {
@@ -266,15 +760,16 @@ The invite contains one link for your friend and one for you (in case you leave 
           
           // For remote games, send roll action to server
           if (isJoiningRemoteGame || remoteGameId) {
-              // In remote mode, we need to send the roll action to the server
-              // and get the updated state back
-              const finalDiceValues = gameState.dice.map((die, index) => {
-                if (unheldDiceIndices.includes(index)) {
-                  // Test features - hidden for production
-                  return forceYahtzee ? 2 : Math.floor(Math.random() * 6) + 1;
-                }
-                return die.value;
-              });
+                             // In remote mode, we need to send the roll action to the server
+               // and get the updated state back
+               const finalDiceValues = gameState.dice.map((die, index) => {
+                 if (unheldDiceIndices.includes(index)) {
+                   // Test features - hidden for production
+                   // return forceYahtzee ? 2 : Math.floor(Math.random() * 6) + 1;
+                   return Math.floor(Math.random() * 6) + 1;
+                 }
+                 return die.value;
+               });
               
               fetch(`http://localhost:3001/api/games/${remoteGameId}/roll`, {
                 method: 'POST',
@@ -297,26 +792,26 @@ The invite contains one link for your friend and one for you (in case you leave 
               .catch(error => {
                 console.error('Error rolling dice:', error);
               });
-            } else {
-              // Local mode: use the engine to roll dice
-              if (forceYahtzee) {
-                // Test features - hidden for production
-                // Force Yahtzee mode: manually update state with all 2s
-                setGameState(prev => ({
-                  ...prev,
-                  dice: prev.dice.map((die, index) => 
-                    unheldDiceIndices.includes(index) 
-                      ? { ...die, value: 2 }
-                      : die
-                  ),
-                  rollsLeft: prev.rollsLeft - 1
-                }));
-              } else {
-                // Normal local mode: use the engine to roll dice
-                const newState = gameEngine.rollDice();
-                setGameState(newState);
-              }
-            }
+                         } else {
+               // Local mode: use the engine to roll dice
+               // if (forceYahtzee) {
+               //   // Test features - hidden for production
+               //   // Force Yahtzee mode: manually update state with all 2s
+               //   setGameState(prev => ({
+               //     ...prev,
+               //     dice: prev.dice.map((die, index) => 
+               //       unheldDiceIndices.includes(index) 
+               //         ? { ...die, value: 2 }
+               //         : die
+               //     ),
+               //     rollsLeft: prev.rollsLeft - 1
+               //   }));
+               // } else {
+                 // Normal local mode: use the engine to roll dice
+                 const newState = gameEngine.rollDice();
+                 setGameState(newState);
+               // }
+             }
           // }
         }
       }, interval);
@@ -427,7 +922,7 @@ The invite contains one link for your friend and one for you (in case you leave 
 
   // Get winner
   const getWinner = () => {
-    if (!gameState.gameComplete) return null;
+    if (!gameState.gameComplete || !gameState.players || gameState.players.length === 0) return null;
     return gameState.players.reduce((winner, player) => {
       const playerScore = getTotalScore(player);
       const winnerScore = winner ? getTotalScore(winner) : 0;
@@ -437,13 +932,28 @@ The invite contains one link for your friend and one for you (in case you leave 
 
   // Handle play again
   const handlePlayAgain = () => {
+    // Capture previous game result for notification if game was complete
+    if (gameState.gameComplete && gameMode === 'remote') {
+      const winner = getWinner();
+      const loser = gameState.players.find(p => p.name !== winner?.name);
+      if (winner && loser) {
+        console.log('Setting previous game result:', { winner: winner.name, loser: loser.name });
+        setPreviousGameResult({
+          winner: winner.name,
+          winnerScore: getTotalScore(winner),
+          loser: loser.name,
+          loserScore: getTotalScore(loser),
+        });
+      }
+    }
+    
     // For remote games, send play again action to server
     if (isJoiningRemoteGame || remoteGameId) {
       fetch(`http://localhost:3001/api/games/${remoteGameId}/play-again`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
       })
       .then(response => response.json())
       .then(result => {
@@ -451,6 +961,11 @@ The invite contains one link for your friend and one for you (in case you leave 
           setGameState(result.gameState);
           setIsRolling(false);
           setRollingDice([]);
+          
+          // Set previous game result from server response for both players
+          if (result.previousGameResult) {
+            setPreviousGameResult(result.previousGameResult);
+          }
         } else {
           console.error('Play again failed:', result.error);
         }
@@ -464,6 +979,7 @@ The invite contains one link for your friend and one for you (in case you leave 
       setGameState(newState);
       setIsRolling(false);
       setRollingDice([]);
+      // Don't clear previousGameResult here - let it persist for the notification
     }
   };
 
@@ -472,13 +988,13 @@ The invite contains one link for your friend and one for you (in case you leave 
     // Reset game history
     gameEngine.resetHistory();
     
-    // Reset all local state to initial values
-          setPlayerCount(1);
-      setPlayerNames(['Player 1']);
-      setForceYahtzee(false);
-      setIsRolling(false);
-      setRollingDice([]);
-    
+         // Reset all local state to initial values
+           setPlayerCount(1);
+       setPlayerNames(['Player 1']);
+       // setForceYahtzee(false);
+       setIsRolling(false);
+       setRollingDice([]);
+   
     // Reset game state to initial setup state
     const initialState = gameEngine.getState();
     const resetState = {
@@ -494,63 +1010,76 @@ The invite contains one link for your friend and one for you (in case you leave 
     setGameState(resetState);
   };
 
-  // Quick test mode - fill in most categories for testing (hidden for production)
-  const enableQuickTestMode = () => {
-    // Create a test game state with most categories filled
-    const testPlayers = gameState.players.map((player) => {
-      const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
-      
-      // Fill in all categories except 'chance' with reasonable test scores
-      const categories: ScoringCategory[] = [
-        'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
-        'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
-      ];
-      
-      categories.forEach((category) => {
-        // Generate varied but realistic scores
-        let score = 0;
-        switch (category) {
-          case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
-          case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
-          case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
-          case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
-          case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
-          case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
-          case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
-          case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
-          case 'fullHouse': score = 25; break;
-          case 'smallStraight': score = 30; break;
-          case 'largeStraight': score = 40; break;
-          case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
-        }
-        testScoreCard[category] = score;
-      });
-      
-      // Add some Yahtzee bonuses for variety
-      if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
-        testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
-      }
-      
-      return {
-        ...player,
-        scoreCard: testScoreCard
-      };
-    });
-    
-    // Set to final turn with current player having one category left
-    const newState = {
-      ...gameState,
-      players: testPlayers,
-      currentTurn: 13,
-      currentPlayerIndex: 0,
-      rollsLeft: 3,
-      dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
-    };
-    
-    // Update both the local state and the engine state
-    gameEngine.updateState(newState);
-    setGameState(newState);
+  // Handle create new game
+  const handleCreateNewGame = () => {
+    // Navigate to the main game setup page (fresh start)
+    // This preserves the current completed game so users can return to it via game URLs
+    window.location.href = window.location.origin;
   };
+  
+  // Clear previous game result notification
+  const clearPreviousGameResult = () => {
+    console.log('Clearing previous game result notification');
+    setPreviousGameResult(null);
+  };
+
+     // Quick test mode - fill in most categories for testing (hidden for production)
+   // const enableQuickTestMode = () => {
+   //   // Create a test game state with most categories filled
+   //   const testPlayers = gameState.players.map((player) => {
+   //     const testScoreCard: Partial<Record<ScoringCategory, number>> & { yahtzeeBonus?: number } = {};
+   //     
+   //     // Fill in all categories except 'chance' with reasonable test scores
+   //     const categories: ScoringCategory[] = [
+   //       'ones', 'twos', 'threes', 'fours', 'fives', 'sixes',
+   //       'threeOfAKind', 'fourOfAKind', 'fullHouse', 'smallStraight', 'largeStraight', 'yahtzee'
+   //     ];
+   //     
+   //     categories.forEach((category) => {
+   //       // Generate varied but realistic scores
+   //       let score = 0;
+   //       switch (category) {
+   //         case 'ones': score = Math.floor(Math.random() * 5) + 1; break;
+   //         case 'twos': score = Math.floor(Math.random() * 10) + 2; break;
+   //         case 'threes': score = Math.floor(Math.random() * 15) + 3; break;
+   //         case 'fours': score = Math.floor(Math.random() * 20) + 4; break;
+   //         case 'fives': score = Math.floor(Math.random() * 25) + 5; break;
+   //         case 'sixes': score = Math.floor(Math.random() * 30) + 6; break;
+   //         case 'threeOfAKind': score = Math.floor(Math.random() * 15) + 15; break;
+   //         case 'fourOfAKind': score = Math.floor(Math.random() * 20) + 20; break;
+   //         case 'fullHouse': score = 25; break;
+   //         case 'smallStraight': score = 30; break;
+   //         case 'largeStraight': score = 40; break;
+   //         case 'yahtzee': score = Math.random() > 0.5 ? 50 : 0; break;
+   //       }
+   //       testScoreCard[category] = score;
+   //     });
+   //     
+   //     // Add some Yahtzee bonuses for variety
+   //     if ((testScoreCard.yahtzee ?? 0) > 0 && Math.random() > 0.7) {
+   //       testScoreCard.yahtzeeBonus = Math.floor(Math.random() * 3) * 100;
+   //     }
+   //     
+   //     return {
+   //       ...player,
+   //       scoreCard: testScoreCard
+   //     };
+   //   });
+   //   
+   //   // Set to final turn with current player having one category left
+   //   const newState = {
+   //     ...gameState,
+   //     players: testPlayers,
+   //     currentTurn: 13,
+   //     currentPlayerIndex: 0,
+   //     rollsLeft: 3,
+   //     dice: Array.from({ length: 5 }, () => ({ value: 1, isHeld: false }))
+   //   };
+   //   
+   //   // Update both the local state and the engine state
+   //   gameEngine.updateState(newState);
+   //   setGameState(newState);
+   // };
 
   // Handle player count change
   const handlePlayerCountChange = (count: number) => {
@@ -570,6 +1099,8 @@ The invite contains one link for your friend and one for you (in case you leave 
 
   const handleGameModeChange = (mode: 'local' | 'remote') => {
     setGameMode(mode);
+    // Clear previous game result when changing modes
+    setPreviousGameResult(null);
     if (mode === 'remote') {
       // Remote mode: creator enters their name, invited player enters theirs later
       setPlayerCount(1);
@@ -602,9 +1133,84 @@ The invite contains one link for your friend and one for you (in case you leave 
             color: '#fbbf24',
             textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: '"Georgia", "Times New Roman", serif'
-          }}>
+                      }}>
             🎲 Yahtzee Challenge
           </h1>
+
+          {/* Previous Game Result Notification (Remote Mode Only) - Displayed in remote game joining screen */}
+          {previousGameResult && gameMode === 'remote' && (
+            <div style={{
+              width: '100%',
+              marginBottom: '2rem',
+              padding: '1.25rem',
+              backgroundColor: 'rgba(251, 191, 36, 0.15)',
+              borderRadius: '0.75rem',
+              border: '2px solid rgba(251, 191, 36, 0.4)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.75rem',
+              boxShadow: '0 4px 12px rgba(251, 191, 36, 0.2)',
+              animation: 'fadeIn 0.5s ease-in-out',
+              position: 'relative'
+            }}>
+              <div style={{
+                flex: 1,
+                fontSize: '1rem',
+                color: '#fbbf24',
+                fontWeight: '600',
+                fontFamily: '"Georgia", "Times New Roman", serif',
+                lineHeight: '1.4',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span style={{
+                  backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                  color: '#92400e',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  PREVIOUS GAME
+                </span>
+                🏆 <strong>{previousGameResult.winner}</strong> ({previousGameResult.winnerScore}) beat <strong>{previousGameResult.loser}</strong> ({previousGameResult.loserScore}) in the previous game. A new game has begun! 🎲
+              </div>
+                              <button
+                  onClick={() => setPreviousGameResult(null)}
+                  style={{
+                    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                    color: '#fbbf24',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease'
+                  }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+                title="Dismiss notification"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {/* Game Link Error Message */}
           {gameLinkError && (
@@ -630,32 +1236,35 @@ The invite contains one link for your friend and one for you (in case you leave 
             border: '1px solid rgba(255,255,255,0.2)',
             boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
           }}>
-            {remotePlayerType === 'creator' ? (
-              // Creator's view - waiting for friend to join
-              <div style={{ textAlign: 'center' }}>
-                <h2 style={{ 
-                  fontSize: '1.5rem', 
-                  fontWeight: 'bold', 
-                  marginBottom: '1rem',
-                  color: '#fbbf24'
-                }}>
-                  Waiting for your friend to join...
-                </h2>
-                <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>
-                  You've created a remote Yahtzee game.
-                </p>
-                <div style={{ 
-                  marginTop: '2rem', 
-                  padding: '1rem', 
-                  backgroundColor: 'rgba(251, 191, 36, 0.1)', 
-                  borderRadius: '0.5rem',
-                  border: '1px solid rgba(251, 191, 36, 0.3)'
-                }}>
-                  <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                    Your friend needs to click their invite link to join the game.
-                  </p>
-                </div>
-              </div>
+                         {remotePlayerType === 'creator' ? (
+               // Creator's view - waiting for friend to join
+               <div style={{ textAlign: 'center' }}>
+                 <h2 style={{ 
+                   fontSize: '1.5rem', 
+                   fontWeight: 'bold', 
+                   marginBottom: '1rem',
+                   color: '#fbbf24'
+                 }}>
+                   Waiting for your friend to join...
+                 </h2>
+                 <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>
+                   You've created a remote Yahtzee game.
+                 </p>
+                                   <div style={{ 
+                    marginTop: '1rem', 
+                    padding: '1rem', 
+                    backgroundColor: 'rgba(251, 191, 36, 0.1)', 
+                    borderRadius: '0.5rem',
+                    border: '1px solid rgba(251, 191, 36, 0.3)',
+                    marginBottom: '1rem'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>
+                      If you haven't already sent your invite (copied to your clipboard) please do so now.
+                    </p>
+                  </div>
+                 
+                 
+               </div>
             ) : (
               // Friend's view - enter name to join
               <div>
@@ -684,7 +1293,10 @@ The invite contains one link for your friend and one for you (in case you leave 
                   <input
                     type="text"
                     value={playerNames[0] || ''}
-                    onChange={(e) => handlePlayerNameChange(0, e.target.value)}
+                                         onChange={(e) => {
+                       handlePlayerNameChange(0, e.target.value);
+                       if (nameError) setNameError(null);
+                     }}
                     style={{ 
                       width: '100%',
                       padding: '0.75rem',
@@ -695,9 +1307,19 @@ The invite contains one link for your friend and one for you (in case you leave 
                       backgroundColor: 'white',
                       color: '#1f2937'
                     }}
-                    placeholder="Enter your name"
-                  />
-                </div>
+                                         placeholder="Enter your name"
+                   />
+                   {nameError && (
+                     <div style={{
+                       color: '#ef4444',
+                       fontSize: '0.875rem',
+                       marginTop: '0.5rem',
+                       fontFamily: '"Georgia", "Times New Roman", serif'
+                     }}>
+                       {nameError}
+                     </div>
+                   )}
+                 </div>
 
                 <div style={{ textAlign: 'center' }}>
                   <button
@@ -723,7 +1345,13 @@ The invite contains one link for your friend and one for you (in case you leave 
               </div>
             )}
           </div>
+          
+          {/* Tip Component */}
+          <TipComponent />
         </div>
+        
+        {/* Notification System */}
+        <NotificationSystem />
       </div>
     );
   }
@@ -747,11 +1375,86 @@ The invite contains one link for your friend and one for you (in case you leave 
             color: '#fbbf24',
             textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: '"Georgia", "Times New Roman", serif'
-          }}>
-            🎲 Yahtzee Clone 🎲
-          </h1>
+                      }}>
+              🎲 Yahtzee 🎲
+            </h1>
 
-          <div style={{ 
+            {/* Previous Game Result Notification (Remote Mode Only) - Displayed in game setup screen */}
+            {previousGameResult && gameMode === 'remote' && (
+              <div style={{
+                width: '100%',
+                marginBottom: '2rem',
+                padding: '1.25rem',
+                backgroundColor: 'rgba(251, 191, 36, 0.15)',
+                borderRadius: '0.75rem',
+                border: '2px solid rgba(251, 191, 36, 0.4)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                boxShadow: '0 4px 12px rgba(251, 191, 36, 0.2)',
+                animation: 'fadeIn 0.5s ease-in-out',
+                position: 'relative'
+              }}>
+                <div style={{
+                  flex: 1,
+                  fontSize: '1rem',
+                  color: '#fbbf24',
+                  fontWeight: '600',
+                  fontFamily: '"Georgia", "Times New Roman", serif',
+                  lineHeight: '1.4',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}>
+                  <span style={{
+                    backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                    color: '#92400e',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '0.25rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold',
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}>
+                    PREVIOUS GAME
+                  </span>
+                  🏆 <strong>{previousGameResult.winner}</strong> ({previousGameResult.winnerScore}) beat <strong>{previousGameResult.loser}</strong> ({previousGameResult.loserScore}) in the previous game. A new game has begun! 🎲
+                </div>
+                <button
+                  onClick={() => setPreviousGameResult(null)}
+                  style={{
+                    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                    color: '#fbbf24',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                  title="Dismiss notification"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            <div style={{ 
             backgroundColor: 'rgba(255,255,255,0.1)', 
             padding: '2rem', 
             borderRadius: '0.75rem',
@@ -893,7 +1596,10 @@ The invite contains one link for your friend and one for you (in case you leave 
                     <input
                       type="text"
                       value={playerNames[i] || ''}
-                      onChange={(e) => handlePlayerNameChange(i, e.target.value)}
+                                             onChange={(e) => {
+                         handlePlayerNameChange(i, e.target.value);
+                         if (gameMode === 'remote' && i === 0 && nameError) setNameError(null);
+                       }}
                       style={{ 
                         flex: 1,
                         padding: '0.5rem',
@@ -902,10 +1608,20 @@ The invite contains one link for your friend and one for you (in case you leave 
                         fontSize: '1rem',
                         fontFamily: '"Georgia", "Times New Roman", serif'
                       }}
-                      placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
-                    />
-                  </div>
-                ))}
+                                             placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
+                     />
+                     {gameMode === 'remote' && i === 0 && nameError && (
+                       <div style={{
+                         color: '#ef4444',
+                         fontSize: '0.875rem',
+                         marginTop: '0.5rem',
+                         fontFamily: '"Georgia", "Times New Roman", serif'
+                       }}>
+                         {nameError}
+                       </div>
+                     )}
+                   </div>
+                 ))}
               </div>
               {gameMode === 'remote' && (
                 <div style={{ 
@@ -942,7 +1658,13 @@ The invite contains one link for your friend and one for you (in case you leave 
 
 
           </div>
+          
+          {/* Tip Component */}
+          <TipComponent />
         </div>
+        
+        {/* Notification System */}
+        <NotificationSystem />
       </div>
     );
   }
@@ -988,7 +1710,7 @@ The invite contains one link for your friend and one for you (in case you leave 
               color: '#fbbf24',
               fontFamily: '"Georgia", "Times New Roman", serif'
             }}>
-              🎉 {winner?.name} Wins! 🎉
+              🎉 {winner?.name || 'Game Complete'} 🎉
             </h2>
 
             <div style={{ marginBottom: '2rem' }}>
@@ -1038,7 +1760,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                 backgroundColor: 'rgba(251, 191, 36, 0.1)', 
                 padding: '1.5rem', 
                 borderRadius: '0.5rem', 
-                marginBottom: '2rem',
+                marginBottom: '3rem',
                 border: '1px solid rgba(251, 191, 36, 0.3)'
               }}>
                 <h3 style={{ 
@@ -1061,16 +1783,103 @@ The invite contains one link for your friend and one for you (in case you leave 
                       borderRadius: '0.25rem',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
-                      <strong>GAME {result.gameNumber}:</strong> {result.players.length === 1 
-                        ? `${result.winner} scored ${result.players.find(p => p.name === result.winner)?.score} points`
-                        : `${result.winner} (${result.players.find(p => p.name === result.winner)?.score}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}`
-                      }
+                                             <strong>GAME {result.gameNumber}:</strong> {result.players.length === 1 
+                         ? `${result.winner || 'Unknown'} scored ${result.players.find(p => p.name === result.winner)?.score || 0} points`
+                         : `${result.winner || 'Unknown'} (${result.players.find(p => p.name === result.winner)?.score || 0}) beat ${result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}`
+                       }
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
+                         {/* Remote Game History */}
+             {gameMode === 'remote' && remoteGameHistory.length > 0 && (
+               <div style={{
+                 marginTop: '2rem',
+                 padding: '1.5rem',
+                 backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                 borderRadius: '0.75rem',
+                 marginBottom: '3rem',
+                 border: '1px solid rgba(251, 191, 36, 0.3)'
+               }}>
+                 <h3 style={{
+                   fontSize: '1.25rem',
+                   fontWeight: 'bold',
+                   marginBottom: '1rem',
+                   color: '#fbbf24',
+                   textAlign: 'center',
+                   fontFamily: '"Georgia", "Times New Roman", serif'
+                 }}>
+                   📜 Session History
+                 </h3>
+                 <div style={{ display: 'grid', gap: '0.5rem' }}>
+                   {remoteGameHistory.map((result, index) => (
+                     <div key={index} style={{ 
+                       fontSize: '0.875rem', 
+                       color: 'white', 
+                       padding: '0.5rem',
+                       backgroundColor: 'rgba(255,255,255,0.05)',
+                       borderRadius: '0.25rem',
+                       fontFamily: '"Georgia", "Times New Roman", serif'
+                     }}>
+                       <strong>GAME {result.gameNumber}:</strong> {result.winner} ({result.winnerScore}) beat {result.players.filter(p => p.name !== result.winner).map(p => `${p.name} (${p.score})`).join(' and ')}
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             )}
+            {/* Previous Game Result Notification (Remote Mode Only) */}
+            {previousGameResult && gameMode === 'remote' && (
+              <div style={{
+                width: '100%',
+                marginBottom: '1rem',
+                padding: '1rem',
+                backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(251, 191, 36, 0.3)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div style={{
+                  flex: 1,
+                  fontSize: '1rem',
+                  color: '#fbbf24',
+                  fontWeight: '600',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  🏆 {previousGameResult.winner} ({previousGameResult.winnerScore}) beat {previousGameResult.loser} ({previousGameResult.loserScore}) in the previous game. A new game has begun!
+                </div>
+                <button
+                  onClick={() => setPreviousGameResult(null)}
+                  style={{
+                    backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                    color: '#fbbf24',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <div style={{ textAlign: 'center', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
               <button
                 onClick={handlePlayAgain}
@@ -1089,7 +1898,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                 🎲 Play Again
               </button>
               <button
-                onClick={handleStartFromScratch}
+                onClick={handleCreateNewGame}
                 style={{ 
                   backgroundColor: '#6b7280',
                   padding: '1rem 2rem',
@@ -1102,11 +1911,17 @@ The invite contains one link for your friend and one for you (in case you leave 
                   fontFamily: '"Georgia", "Times New Roman", serif'
                 }}
               >
-                🆕 Start From Scratch
+                🆕 Create a New Game
               </button>
             </div>
           </div>
+          
+          {/* Tip Component */}
+          <TipComponent />
         </div>
+        
+        {/* Notification System */}
+        <NotificationSystem />
       </div>
     );
   }
@@ -1137,8 +1952,83 @@ The invite contains one link for your friend and one for you (in case you leave 
           textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
           fontFamily: '"Georgia", "Times New Roman", serif'
         }}>
-          🎲 Yahtzee Clone 🎲
+          🎲 Yahtzee 🎲
         </h1>
+
+        {/* Previous Game Result Notification (Remote Mode Only) - Displayed in main game screen */}
+        {previousGameResult && gameMode === 'remote' && (
+          <div style={{
+            width: '100%',
+            marginBottom: '2rem',
+            padding: '1.25rem',
+            backgroundColor: 'rgba(251, 191, 36, 0.15)',
+            borderRadius: '0.75rem',
+            border: '2px solid rgba(251, 191, 36, 0.4)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            boxShadow: '0 4px 12px rgba(251, 191, 36, 0.2)',
+            animation: 'fadeIn 0.5s ease-in-out',
+            position: 'relative'
+          }}>
+            <div style={{
+              flex: 1,
+              fontSize: '1rem',
+              color: '#fbbf24',
+              fontWeight: '600',
+              fontFamily: '"Georgia", "Times New Roman", serif',
+              lineHeight: '1.4',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span style={{
+                backgroundColor: 'rgba(251, 191, 36, 0.3)',
+                color: '#92400e',
+                padding: '0.25rem 0.5rem',
+                borderRadius: '0.25rem',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                fontFamily: '"Georgia", "Times New Roman", serif'
+              }}>
+                PREVIOUS GAME
+              </span>
+              🏆 <strong>{previousGameResult.winner}</strong> ({previousGameResult.winnerScore}) beat <strong>{previousGameResult.loser}</strong> ({previousGameResult.loserScore}) in the previous game. A new game has begun! 🎲
+            </div>
+            <button
+              onClick={() => setPreviousGameResult(null)}
+              style={{
+                backgroundColor: 'rgba(251, 191, 36, 0.2)',
+                color: '#fbbf24',
+                border: '1px solid #fbbf24',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(251, 191, 36, 0.2)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Dismiss notification"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Game Link Error Message */}
         {gameLinkError && (
@@ -1229,7 +2119,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                         return true; // In local mode, all players can act
                       } else {
                         // In remote mode, determine which player this user is
-                        const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                        const currentUserPlayerIndex = remotePlayerType === 'creator' ? 1 : 0;
                         return currentUserPlayerIndex === gameState.currentPlayerIndex;
                       }
                     })();
@@ -1254,7 +2144,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                           return true; // In local mode, all players can act
                         } else {
                           // In remote mode, determine which player this user is
-                          const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                          const currentUserPlayerIndex = remotePlayerType === 'creator' ? 1 : 0;
                           return currentUserPlayerIndex === gameState.currentPlayerIndex;
                         }
                       })();
@@ -1324,7 +2214,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                   return true; // In local mode, all players can act
                 } else {
                   // In remote mode, determine which player this user is
-                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 1 : 0;
                   return currentUserPlayerIndex === gameState.currentPlayerIndex;
                 }
               })();
@@ -1388,69 +2278,69 @@ The invite contains one link for your friend and one for you (in case you leave 
               );
             })()}
             
-            {/* Test Features - Hidden for production */}
-            {gameState.gameStarted && !gameState.gameComplete && (
-              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <div style={{ marginBottom: '1rem' }}>
-                  <button
-                    onClick={() => setForceYahtzee(!forceYahtzee)}
-                    style={{
-                      backgroundColor: forceYahtzee ? '#dc2626' : '#7c3aed',
-                      color: 'white',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.25rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem',
-                      fontWeight: '600',
-                      fontFamily: '"Georgia", "Times New Roman", serif',
-                      marginRight: '0.5rem'
-                    }}
-                  >
-                    {forceYahtzee ? '🎲 Disable Yahtzee Test' : '🎲 Force Yahtzee (All 2s)'}
-                  </button>
-                  {forceYahtzee && (
-                    <p style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#fbbf24', 
-                      marginTop: '0.5rem',
-                      fontStyle: 'italic',
-                      fontFamily: '"Georgia", "Times New Roman", serif'
-                    }}>
-                      Next roll will result in all 2s (Yahtzee)
-                    </p>
-                  )}
-                </div>
-                
-                <div>
-                  <button
-                    onClick={enableQuickTestMode}
-                    style={{
-                      backgroundColor: '#7c3aed',
-                      color: 'white',
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.25rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem',
-                      fontWeight: '600',
-                      fontFamily: '"Georgia", "Times New Roman", serif'
-                    }}
-                  >
-                    🧪 Quick Test Mode
-                  </button>
-                  <p style={{ 
-                    fontSize: '0.75rem', 
-                    color: '#fbbf24', 
-                    marginTop: '0.5rem',
-                    fontStyle: 'italic',
-                    fontFamily: '"Georgia", "Times New Roman", serif'
-                  }}>
-                    Fill most categories to test game completion
-                  </p>
-                </div>
-              </div>
-            )}
+                         {/* Test Features - Hidden for production */}
+             {/* {gameState.gameStarted && !gameState.gameComplete && (
+               <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                 <div style={{ marginBottom: '1rem' }}>
+                   <button
+                     onClick={() => setForceYahtzee(!forceYahtzee)}
+                     style={{
+                       backgroundColor: forceYahtzee ? '#dc2626' : '#7c3aed',
+                       color: 'white',
+                       padding: '0.5rem 1rem',
+                       borderRadius: '0.25rem',
+                       border: 'none',
+                       cursor: 'pointer',
+                       fontSize: '0.875rem',
+                       fontWeight: '600',
+                       fontFamily: '"Georgia", "Times New Roman", serif',
+                       marginRight: '0.5rem'
+                     }}
+                   >
+                     {forceYahtzee ? '🎲 Disable Yahtzee Test' : '🎲 Force Yahtzee (All 2s)'}
+                   </button>
+                   {forceYahtzee && (
+                     <p style={{ 
+                       fontSize: '0.75rem', 
+                       color: '#fbbf24', 
+                       marginTop: '0.5rem',
+                       fontStyle: 'italic',
+                       fontFamily: '"Georgia", "Times New Roman", serif'
+                     }}>
+                       Next roll will result in all 2s (Yahtzee)
+                     </p>
+                   )}
+                 </div>
+                 
+                 <div>
+                   <button
+                     onClick={enableQuickTestMode}
+                     style={{
+                       backgroundColor: '#7c3aed',
+                       color: 'white',
+                       padding: '0.5rem 1rem',
+                       borderRadius: '0.25rem',
+                       border: 'none',
+                       cursor: 'pointer',
+                       fontSize: '0.875rem',
+                       fontWeight: '600',
+                       fontFamily: '"Georgia", "Times New Roman", serif'
+                     }}
+                   >
+                     🧪 Quick Test Mode
+                   </button>
+                   <p style={{ 
+                     fontSize: '0.75rem', 
+                     color: '#fbbf24', 
+                     marginTop: '0.5rem',
+                     fontStyle: 'italic',
+                     fontFamily: '"Georgia", "Times New Roman", serif'
+                   }}>
+                     Fill most categories to test game completion
+                   </p>
+                 </div>
+               </div>
+             )} */}
 
           </div>
 
@@ -1462,8 +2352,23 @@ The invite contains one link for your friend and one for you (in case you leave 
             minWidth: '300px'
           }}>
             {gameState.players.map((player, playerIndex) => {
-              // Reorder players so active player is first
-              const displayIndex = (playerIndex + gameState.currentPlayerIndex) % gameState.players.length;
+              // For remote mode: each player always sees their own score card on top
+              // For local mode: rotate players so active player is first
+              let displayIndex;
+              if (gameMode === 'remote') {
+                // In remote mode, each player sees their own score card on top
+                // Creator is at player index 1, friend is at player index 0
+                if (remotePlayerType === 'creator') {
+                  // Creator sees their card (index 1) first, then friend's card (index 0)
+                  displayIndex = playerIndex === 0 ? 1 : 0;
+                } else {
+                  // Friend sees their card (index 0) first, then creator's card (index 1)
+                  displayIndex = playerIndex;
+                }
+              } else {
+                // In local mode, rotate players so active player is first
+                displayIndex = (playerIndex + gameState.currentPlayerIndex) % gameState.players.length;
+              }
               const displayPlayer = gameState.players[displayIndex];
               const isActivePlayer = displayIndex === gameState.currentPlayerIndex;
               
@@ -1473,7 +2378,7 @@ The invite contains one link for your friend and one for you (in case you leave 
                   return true; // In local mode, all players can act
                 } else {
                   // In remote mode, determine which player this user is
-                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 0 : 1;
+                  const currentUserPlayerIndex = remotePlayerType === 'creator' ? 1 : 0;
                   return currentUserPlayerIndex === gameState.currentPlayerIndex;
                 }
               })();
@@ -1944,9 +2849,15 @@ The invite contains one link for your friend and one for you (in case you leave 
            })}
            </div>
          </div>
-       </div>
-     </div>
-   )
- }
+         
+                   {/* Tip Component */}
+          <TipComponent />
+        </div>
+        
+        {/* Notification System */}
+        <NotificationSystem />
+      </div>
+    )
+  }
 
 export default App

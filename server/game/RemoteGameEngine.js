@@ -19,12 +19,13 @@ export class RemoteGameEngine extends GameEngine {
     super();
     this.gameId = gameId;
     this.dbManager = dbManager;
-    this.gameNumber = 1;
     
     // Try to load existing game, or initialize with default state
     const existingState = this.dbManager.loadGame(gameId);
     if (existingState) {
       this.state = existingState;
+      // Load existing game number from state, or default to 1
+      this.gameNumber = existingState.gameNumber || 1;
     } else {
       // Initialize with default state (same as LocalGameEngine)
       this.state = {
@@ -34,8 +35,10 @@ export class RemoteGameEngine extends GameEngine {
         currentPlayerIndex: 0,
         currentTurn: 1,
         gameComplete: false,
-        gameStarted: false
+        gameStarted: false,
+        gameNumber: 1
       };
+      this.gameNumber = 1;
     }
   }
 
@@ -49,8 +52,13 @@ export class RemoteGameEngine extends GameEngine {
   }
 
   startGame(playerCount, playerNames) {
-    // Use the same logic as LocalGameEngine
-    this.state = initializeGame(playerCount, playerNames);
+    // Use the same logic as LocalGameEngine, but preserve the gameNumber
+    const newState = initializeGame(playerCount, playerNames);
+    // Preserve the current gameNumber for the new game
+    this.state = {
+      ...newState,
+      gameNumber: this.gameNumber
+    };
     this.dbManager.updateGame(this.gameId, this.state);
     return this.state;
   }
@@ -183,6 +191,9 @@ export class RemoteGameEngine extends GameEngine {
       if (nextPlayerIndex === 0) {
         nextTurn++;
       }
+    } else {
+      // Game is complete, don't increment turn further
+      nextTurn = 13;
     }
     
     this.state = {
@@ -197,18 +208,26 @@ export class RemoteGameEngine extends GameEngine {
     
     // If game is complete, add to history (same logic as LocalGameEngine)
     if (gameComplete) {
-      const result = {
-        gameNumber: this.gameNumber,
-        players: this.state.players.map(player => ({
+      const winner = getWinner(this.state);
+      if (winner && winner.name) {
+        const result = {
+          gameNumber: this.gameNumber,
+          players: this.state.players.map(player => ({
+            name: player.name,
+            score: getTotalScore(player)
+          })),
+          winner: winner.name,
+          timestamp: new Date()
+        };
+        
+        this.dbManager.recordGameResult(this.gameId, this.gameNumber, winner.name, getTotalScore(winner), this.state.players.map(player => ({
           name: player.name,
           score: getTotalScore(player)
-        })),
-        winner: getWinner(this.state).name,
-        timestamp: new Date()
-      };
-      
-      this.dbManager.addGameResult(this.gameId, result);
-      this.gameNumber++;
+        })));
+        this.gameNumber++;
+        // Store the incremented game number in the state
+        this.state.gameNumber = this.gameNumber;
+      }
     }
     
     // Persist to database
@@ -221,7 +240,7 @@ export class RemoteGameEngine extends GameEngine {
   }
 
   addGameResult(result) {
-    this.dbManager.addGameResult(this.gameId, result);
+    this.dbManager.recordGameResult(this.gameId, result.gameNumber, result.winner, result.players.find(p => p.name === result.winner)?.score || 0, result.players);
   }
 
   async persistState() {

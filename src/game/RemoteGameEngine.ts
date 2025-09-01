@@ -53,8 +53,13 @@ export class RemoteGameEngine implements GameEngine {
   }
 
   startGame(playerCount: number, playerNames: string[]): GameState {
-    // Use the same logic as LocalGameEngine
-    this.state = initializeGame(playerCount, playerNames);
+    // Use the same logic as LocalGameEngine, but preserve the gameNumber
+    const newState = initializeGame(playerCount, playerNames);
+    // Preserve the current gameNumber for the new game
+    this.state = {
+      ...newState,
+      gameNumber: this.gameNumber
+    };
     this.dbManager.updateGame(this.gameId, this.state);
     return this.state;
   }
@@ -187,6 +192,9 @@ export class RemoteGameEngine implements GameEngine {
       if (nextPlayerIndex === 0) {
         nextTurn++;
       }
+    } else {
+      // Game is complete, don't increment turn further
+      nextTurn = 13;
     }
     
     this.state = {
@@ -201,18 +209,21 @@ export class RemoteGameEngine implements GameEngine {
     
     // If game is complete, add to history (same logic as LocalGameEngine)
     if (gameComplete) {
-      const result: GameResult = {
-        gameNumber: this.gameNumber,
-        players: this.state.players.map(player => ({
-          name: player.name,
-          score: getTotalScore(player)
-        })),
-        winner: getWinner(this.state).name,
-        timestamp: new Date()
-      };
-      
-      this.dbManager.addGameResult(this.gameId, result);
-      this.gameNumber++;
+      const winner = getWinner(this.state);
+      if (winner && winner.name) {
+        const result: GameResult = {
+          gameNumber: this.gameNumber,
+          players: this.state.players.map(player => ({
+            name: player.name,
+            score: getTotalScore(player)
+          })),
+          winner: winner.name,
+          timestamp: new Date()
+        };
+        
+        this.dbManager.addGameResult(this.gameId, result);
+        this.gameNumber++;
+      }
     }
     
     // Persist to database
