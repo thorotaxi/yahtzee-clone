@@ -2,13 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import { DatabaseManager } from './database/DatabaseManager.js';
 import { RemoteGameEngine } from './game/RemoteGameEngine.js';
+import config from './config.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'],
+  origin: config.corsOrigins,
   credentials: true
 }));
 app.use(express.json());
