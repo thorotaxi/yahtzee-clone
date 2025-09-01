@@ -285,10 +285,10 @@ app.post('/api/games/:gameId/play-again', (req, res) => {
       success: true, 
       gameState: updatedGameState,
       previousGameResult: previousGameResult ? {
-        winner: previousGameResult.winner_name,
-        winnerScore: previousGameResult.winner_score,
-        loser: previousGameResult.players.find(p => p.name !== previousGameResult.winner_name)?.name || 'Unknown',
-        loserScore: previousGameResult.players.find(p => p.name !== previousGameResult.winner_name)?.score || 0
+        winner: previousGameResult.winner,
+        winnerScore: previousGameResult.winnerScore,
+        loser: previousGameResult.players.find(p => p.name !== previousGameResult.winner)?.name || 'Unknown',
+        loserScore: previousGameResult.players.find(p => p.name !== previousGameResult.winner)?.score || 0
       } : null,
       message: 'New game started successfully' 
     });

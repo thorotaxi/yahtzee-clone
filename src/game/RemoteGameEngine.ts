@@ -53,13 +53,15 @@ export class RemoteGameEngine implements GameEngine {
   }
 
   startGame(playerCount: number, playerNames: string[]): GameState {
-    // Use the same logic as LocalGameEngine, but preserve the gameNumber
+    // Use the same logic as LocalGameEngine, but increment the gameNumber
     const newState = initializeGame(playerCount, playerNames);
-    // Preserve the current gameNumber for the new game
+    // Increment the gameNumber for the new game
     this.state = {
       ...newState,
-      gameNumber: this.gameNumber
+      gameNumber: this.gameNumber + 1
     };
+    // Update the instance gameNumber as well
+    this.gameNumber = this.state.gameNumber;
     this.dbManager.updateGame(this.gameId, this.state);
     return this.state;
   }
