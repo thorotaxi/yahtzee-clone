@@ -1,4 +1,4 @@
-// Server Configuration
+// Server Configuration - Updated for production deployment
 const config = {
   // Server settings
   port: process.env.PORT || 3001,
