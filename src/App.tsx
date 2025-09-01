@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import type { GameState, Die, ScoringCategory, Player } from './types'
 import { LocalGameEngine } from './game/LocalGameEngine'
@@ -11,20 +11,111 @@ function App() {
   const [gameState, setGameState] = useState<GameState>(gameEngine.getState());
   const [playerCount, setPlayerCount] = useState(1);
   const [playerNames, setPlayerNames] = useState(['Player 1']);
+  const [gameMode, setGameMode] = useState<'local' | 'remote'>('local');
   const [isRolling, setIsRolling] = useState(false);
   const [rollingDice, setRollingDice] = useState<number[]>([]);
+  
+  // Remote game state
+  const [remoteGameId, setRemoteGameId] = useState<string | null>(null);
+  const [remotePlayerType, setRemotePlayerType] = useState<'creator' | 'friend' | null>(null);
+  const [isJoiningRemoteGame, setIsJoiningRemoteGame] = useState(false);
   // Test features - hidden for production
   // const [forceYahtzee, setForceYahtzee] = useState(false);
 
+  // Join a remote game (for invited friend)
+  const joinRemoteGame = (friendName: string) => {
+    if (!remoteGameId || !friendName.trim()) {
+      alert('Please enter your name to join the game.');
+      return;
+    }
+
+    // For now, show a placeholder - database integration will be implemented on server side
+    alert(`Joining remote game ${remoteGameId} as ${friendName}. Database integration will be implemented when we add the server-side API.`);
+    
+    // TODO: 
+    // 1. Load game from database using remoteGameId
+    // 2. Add friend's name to the game
+    // 3. Set up RemoteGameEngine
+    // 4. Start game with friend going first
+  };
+
   // Start the game
   const startGame = () => {
-    const newState = gameEngine.startGame(playerCount, playerNames);
-    setGameState(newState);
-    
-    // Reset rolling state
-    setIsRolling(false);
-    setRollingDice([]);
+    if (gameMode === 'local') {
+      const newState = gameEngine.startGame(playerCount, playerNames);
+      setGameState(newState);
+      
+      // Reset rolling state
+      setIsRolling(false);
+      setRollingDice([]);
+    } else {
+      // Remote game creation
+      if (!playerNames[0] || playerNames[0].trim() === '') {
+        alert('Please enter your name to create a remote game.');
+        return;
+      }
+      
+      // Generate unique game ID
+      const gameId = generateGameId();
+      
+      // Create invite text with both links (database integration will be implemented on server side)
+      const creatorName = playerNames[0].trim();
+      const baseUrl = window.location.origin;
+      const creatorGameId = `${gameId}_creator`;
+      const friendGameId = `${gameId}_friend`;
+      const creatorLink = `${baseUrl}?game=${creatorGameId}`;
+      const friendLink = `${baseUrl}?game=${friendGameId}`;
+      
+      const inviteText = `${creatorName} has challenged you to a game of Yahtzee.
+
+Your personal link is: ${friendLink}
+${creatorName}'s link is: ${creatorLink}
+
+Be sure to click your own link. Either of you can return to this message to resume your game at any time.`;
+
+      // Copy to clipboard and show to user
+      navigator.clipboard.writeText(inviteText).then(() => {
+        alert(`Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
+
+Game ID: ${gameId}
+Creator: ${creatorName}
+
+The invite text includes both links - make sure your friend clicks their own link!
+
+Note: Database integration will be implemented when we add the server-side API.`);
+      }).catch(() => {
+        // Fallback if clipboard API fails
+        prompt('Copy this invite text and send it to your friend:', inviteText);
+      });
+    }
   };
+
+  // Generate a unique game ID
+  const generateGameId = (): string => {
+    return 'game_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
+  };
+
+  // Check for URL parameters on app load
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameId = urlParams.get('game');
+
+    if (gameId) {
+      // Extract the base game ID and player type from the game ID
+      const isCreator = gameId.endsWith('_creator');
+      const isFriend = gameId.endsWith('_friend');
+      
+      if (isCreator || isFriend) {
+        const baseGameId = gameId.replace(/_creator$|_friend$/, '');
+        const playerType = isCreator ? 'creator' : 'friend';
+        
+        setRemoteGameId(baseGameId);
+        setRemotePlayerType(playerType);
+        setIsJoiningRemoteGame(true);
+        setGameMode('remote');
+      }
+    }
+  }, []);
 
   // Roll the dice (only unheld dice)
   const rollDice = () => {
@@ -258,8 +349,161 @@ function App() {
     setPlayerNames(newNames);
   };
 
+  const handleGameModeChange = (mode: 'local' | 'remote') => {
+    setGameMode(mode);
+    if (mode === 'remote') {
+      // Remote mode: creator enters their name, invited player enters theirs later
+      setPlayerCount(1);
+      setPlayerNames(['']);
+    } else {
+      // Local mode can have 1-4 players, default to 1
+      setPlayerCount(1);
+      setPlayerNames(['Player 1']);
+    }
+  };
+
+
+
+    // Remote game joining screen
+  if (isJoiningRemoteGame) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        background: 'linear-gradient(to bottom, #15803d, #14532d)', 
+        color: 'white', 
+        padding: '2rem',
+        fontFamily: '"Georgia", "Times New Roman", serif'
+      }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <h1 style={{ 
+            fontSize: '2.5rem', 
+            fontWeight: 'bold', 
+            textAlign: 'center', 
+            marginBottom: '2rem', 
+            color: '#fbbf24',
+            textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+            fontFamily: '"Georgia", "Times New Roman", serif'
+          }}>
+            🎲 Yahtzee Challenge
+          </h1>
+
+          <div style={{ 
+            backgroundColor: 'rgba(255,255,255,0.1)', 
+            padding: '2rem', 
+            borderRadius: '0.75rem',
+            border: '1px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+          }}>
+            {remotePlayerType === 'creator' ? (
+              // Creator's view - waiting for friend to join
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ 
+                  fontSize: '1.5rem', 
+                  fontWeight: 'bold', 
+                  marginBottom: '1rem',
+                  color: '#fbbf24'
+                }}>
+                  Waiting for your friend to join...
+                </h2>
+                <p style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>
+                  You've created a remote Yahtzee game.
+                </p>
+                <p style={{ fontSize: '0.9rem', color: '#d1d5db' }}>
+                  Game ID: {remoteGameId}
+                </p>
+                <div style={{ 
+                  marginTop: '2rem', 
+                  padding: '1rem', 
+                  backgroundColor: 'rgba(251, 191, 36, 0.1)', 
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(251, 191, 36, 0.3)'
+                }}>
+                  <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                    Your friend needs to click their invite link to join the game.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              // Friend's view - enter name to join
+              <div>
+                <h2 style={{ 
+                  fontSize: '1.5rem', 
+                  fontWeight: 'bold', 
+                  marginBottom: '1rem',
+                  textAlign: 'center',
+                  color: '#fbbf24'
+                }}>
+                  Join the Game
+                </h2>
+                <p style={{ marginBottom: '1.5rem', textAlign: 'center', fontSize: '1.1rem' }}>
+                  You've been invited to play Yahtzee!
+                </p>
+                
+                <div style={{ marginBottom: '2rem' }}>
+                  <label style={{ 
+                    display: 'block',
+                    fontWeight: '500',
+                    marginBottom: '0.5rem',
+                    fontSize: '1rem'
+                  }}>
+                    Your Name:
+                  </label>
+                  <input
+                    type="text"
+                    value={playerNames[0] || ''}
+                    onChange={(e) => handlePlayerNameChange(0, e.target.value)}
+                    style={{ 
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #d1d5db',
+                      fontSize: '1rem',
+                      fontFamily: '"Georgia", "Times New Roman", serif',
+                      backgroundColor: 'white',
+                      color: '#1f2937'
+                    }}
+                    placeholder="Enter your name"
+                  />
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <button
+                    onClick={() => joinRemoteGame(playerNames[0])}
+                    style={{ 
+                      backgroundColor: '#fbbf24',
+                      padding: '1rem 2rem',
+                      borderRadius: '0.5rem',
+                      fontWeight: '600',
+                      fontSize: '1.25rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                      fontFamily: '"Georgia", "Times New Roman", serif',
+                      color: '#1f2937'
+                    }}
+                  >
+                    🎲 Join Game
+                  </button>
+                </div>
+
+                <div style={{ 
+                  marginTop: '1rem', 
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  textAlign: 'center'
+                }}>
+                  Game ID: {remoteGameId}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Game setup screen
-      if (!gameState.gameStarted) {
+  if (!gameState.gameStarted) {
     return (
       <div style={{ 
         minHeight: '100vh', 
@@ -299,50 +543,95 @@ function App() {
               Game Setup
             </h2>
 
-            {/* Player Count Selection */}
+            {/* Game Mode Selection */}
             <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ 
-                fontSize: '1.25rem', 
-                fontWeight: 'bold', 
-                marginBottom: '1rem',
-                fontFamily: '"Georgia", "Times New Roman", serif'
-              }}>
-                Number of Players:
-              </h3>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                {[1, 2, 3, 4].map(count => (
-                  <button
-                    key={count}
-                    onClick={() => handlePlayerCountChange(count)}
-                    style={{ 
-                      padding: '0.75rem 1.5rem',
-                      borderRadius: '0.5rem',
-                      fontWeight: '600',
-                      fontSize: '1.125rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      backgroundColor: playerCount === count ? '#fbbf24' : '#6b7280',
-                      color: playerCount === count ? '#1f2937' : 'white',
-                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                      fontFamily: '"Georgia", "Times New Roman", serif'
-                    }}
-                  >
-                    {count}
-                  </button>
-                ))}
+                <button
+                  onClick={() => handleGameModeChange('local')}
+                  style={{ 
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '1.125rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: gameMode === 'local' ? '#fbbf24' : '#6b7280',
+                    color: gameMode === 'local' ? '#1f2937' : 'white',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}
+                >
+                  🏠 Local Game
+                </button>
+                <button
+                  onClick={() => handleGameModeChange('remote')}
+                  style={{ 
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    fontWeight: '600',
+                    fontSize: '1.125rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    backgroundColor: gameMode === 'remote' ? '#fbbf24' : '#6b7280',
+                    color: gameMode === 'remote' ? '#1f2937' : 'white',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                    fontFamily: '"Georgia", "Times New Roman", serif'
+                  }}
+                >
+                  🌐 Challenge Your Friend
+                </button>
               </div>
+              {gameMode === 'remote' && (
+                <div style={{ 
+                  marginTop: '1rem', 
+                  fontSize: '0.875rem',
+                  color: 'white',
+                  textAlign: 'center'
+                }}>
+                  <strong>Remote Game:</strong> Create a game that can be played with a friend over the internet. 
+                  Click "Create & Copy Invite" to copy the invite to your clipboard.
+                </div>
+              )}
             </div>
+
+            {/* Player Count Selection - Only for Local Mode */}
+            {gameMode === 'local' && (
+              <div style={{ marginBottom: '2rem' }}>
+                <h3 style={{ 
+                  fontSize: '1.25rem', 
+                  fontWeight: 'bold', 
+                  marginBottom: '1rem',
+                  fontFamily: '"Georgia", "Times New Roman", serif'
+                }}>
+                  Number of Players:
+                </h3>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                  {[1, 2, 3, 4].map(count => (
+                    <button
+                      key={count}
+                      onClick={() => handlePlayerCountChange(count)}
+                      style={{ 
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '0.5rem',
+                        fontWeight: '600',
+                        fontSize: '1.125rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: playerCount === count ? '#fbbf24' : '#6b7280',
+                        color: playerCount === count ? '#1f2937' : 'white',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        fontFamily: '"Georgia", "Times New Roman", serif'
+                      }}
+                    >
+                      {count}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Player Names */}
             <div style={{ marginBottom: '2rem' }}>
-              <h3 style={{ 
-                fontSize: '1.25rem', 
-                fontWeight: 'bold', 
-                marginBottom: '1rem',
-                fontFamily: '"Georgia", "Times New Roman", serif'
-              }}>
-                Player Names:
-              </h3>
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {Array.from({ length: playerCount }, (_, i) => (
                   <div key={i} style={{ 
@@ -356,7 +645,7 @@ function App() {
                       minWidth: '80px',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
-                      Player {i + 1}:
+                      {gameMode === 'remote' ? 'Your Name:' : `Player ${i + 1}:`}
                     </label>
                     <input
                       type="text"
@@ -370,11 +659,22 @@ function App() {
                         fontSize: '1rem',
                         fontFamily: '"Georgia", "Times New Roman", serif'
                       }}
-                      placeholder={`Player ${i + 1}`}
+                      placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
                     />
                   </div>
                 ))}
               </div>
+              {gameMode === 'remote' && (
+                <div style={{ 
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  textAlign: 'center',
+                  marginTop: '0.5rem'
+                }}>
+                  (Your friend will enter their own name when they accept your challenge)
+                </div>
+              )}
+
             </div>
 
             {/* Start Game Button */}
@@ -382,7 +682,7 @@ function App() {
               <button
                 onClick={startGame}
                 style={{ 
-                  backgroundColor: '#059669',
+                  backgroundColor: '#fbbf24',
                   padding: '1rem 2rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
@@ -393,9 +693,11 @@ function App() {
                   fontFamily: '"Georgia", "Times New Roman", serif'
                 }}
               >
-                🎲 Start Game
+                {gameMode === 'local' ? '🎲 Start Game' : '🌐 Create & Copy Invite'}
               </button>
             </div>
+
+
           </div>
         </div>
       </div>
@@ -527,7 +829,7 @@ function App() {
               <button
                 onClick={handlePlayAgain}
                 style={{ 
-                  backgroundColor: '#059669',
+                  backgroundColor: '#fbbf24',
                   padding: '1rem 2rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
@@ -729,7 +1031,7 @@ function App() {
                 onClick={rollDice}
                 disabled={gameState.rollsLeft === 0 || isRolling}
                 style={{ 
-                  backgroundColor: (gameState.rollsLeft === 0 || isRolling) ? '#6b7280' : '#3b82f6',
+                  backgroundColor: (gameState.rollsLeft === 0 || isRolling) ? '#6b7280' : '#fbbf24',
                   padding: '0.75rem 1.5rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
@@ -968,7 +1270,7 @@ function App() {
                                   
                                   // Priority 1: Upper Section if available
                                   if (isCategoryAvailable(displayPlayer, upperCategory)) {
-                                    return category === upperCategory ? '#059669' : '#d97706';
+                                    return category === upperCategory ? '#fbbf24' : '#d97706';
                                   }
                                   
                                   // Priority 2: Lower Section categories only if Upper Section is filled
@@ -981,14 +1283,14 @@ function App() {
                                     const isValidJokerCategory = ((category as ScoringCategory) === 'threeOfAKind' && threeOfAKindAvailable) || 
                                                                  ((category as ScoringCategory) === 'fourOfAKind' && fourOfAKindAvailable);
                                     if (isValidJokerCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                   } else {
                                     // If neither 3-of-a-Kind nor 4-of-a-Kind is available, then highlight other Lower Section categories
                                     const validJokerCategories: ScoringCategory[] = ['fullHouse', 'smallStraight', 'largeStraight', 'chance'];
                                     const isValidJokerCategory = validJokerCategories.includes(category as ScoringCategory) && isCategoryAvailable(displayPlayer, category);
                                     if (isValidJokerCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                     
                                     // If no Lower Section categories are available, highlight Upper Section categories (except the dice value category)
@@ -997,7 +1299,7 @@ function App() {
                                                                 isCategoryAvailable(player, category) && 
                                                                 category !== upperCategory;
                                     if (isValidUpperCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                   }
                                 }
@@ -1149,14 +1451,14 @@ function App() {
                                     const isValidJokerCategory = (key === 'threeOfAKind' && threeOfAKindAvailable) || 
                                                                  (key === 'fourOfAKind' && fourOfAKindAvailable);
                                     if (isValidJokerCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                   } else {
                                     // If neither 3-of-a-Kind nor 4-of-a-Kind is available, then highlight other Lower Section categories
                                     const validJokerCategories = ['fullHouse', 'smallStraight', 'largeStraight', 'chance'];
                                     const isValidJokerCategory = validJokerCategories.includes(key) && isCategoryAvailable(displayPlayer, key);
                                     if (isValidJokerCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                     
                                     // If no Lower Section categories are available, highlight Upper Section categories (except the dice value category)
@@ -1165,7 +1467,7 @@ function App() {
                                                                 isCategoryAvailable(player, key) && 
                                                                 key !== upperCategory;
                                     if (isValidUpperCategory) {
-                                      return '#059669';
+                                      return '#fbbf24';
                                     }
                                   }
                                 }
@@ -1194,7 +1496,7 @@ function App() {
                         <span>{getLowerTotal(displayPlayer)}</span>
                       </div>
                       {(displayPlayer.scoreCard.yahtzeeBonus || 0) > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fbbf24' }}>
                           <span>Yahtzee Bonus</span>
                           <span>+{displayPlayer.scoreCard.yahtzeeBonus}</span>
                         </div>
@@ -1233,7 +1535,7 @@ function App() {
                            {(displayPlayer.scoreCard.yahtzee ?? 0) > 0 && (
                              <span style={{ 
                                fontSize: '0.75rem', 
-                               color: '#059669', 
+                               color: '#fbbf24', 
                                backgroundColor: '#ecfdf5', 
                                padding: '0.125rem 0.25rem', 
                                borderRadius: '0.125rem',
