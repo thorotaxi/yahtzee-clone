@@ -4,7 +4,8 @@ import type { GameState, Die, ScoringCategory, Player } from './types'
 import { LocalGameEngine } from './game/LocalGameEngine'
 import { getPotentialScore, getUpperTotal, getUpperBonus, getLowerTotal, getTotalScore, isCategoryUsed } from './game/gameLogic'
 
-
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function App() {
   const [gameEngine] = useState(() => new LocalGameEngine());
@@ -474,7 +475,7 @@ function App() {
 
     try {
       // Call server API to join the game
-              const response = await fetch(`http://localhost:3001/api/games/${remoteGameId}/join`, {
+              const response = await fetch(`${API_BASE_URL}/api/games/${remoteGameId}/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -531,7 +532,7 @@ function App() {
       
       try {
         // Create the game on the server
-        const response = await fetch('http://localhost:3001/api/games', {
+        const response = await fetch(`${API_BASE_URL}/api/games`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -602,7 +603,7 @@ Be sure to click your own link. Either of you can return to this message to resu
   // Fetch remote game history
   const fetchRemoteGameHistory = async (gameId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/games/${gameId}/history`);
+      const response = await fetch(`${API_BASE_URL}/api/games/${gameId}/history`);
       const result = await response.json();
       if (result.success) {
         setRemoteGameHistory(result.history);
@@ -630,7 +631,7 @@ Be sure to click your own link. Either of you can return to this message to resu
         setGameMode('remote');
         
         // Load the game state from the database
-        fetch(`http://localhost:3001/api/games/${baseGameId}`)
+        fetch(`${API_BASE_URL}/api/games/${baseGameId}`)
           .then(response => response.json())
           .then(result => {
             if (result.success) {
@@ -672,7 +673,7 @@ Be sure to click your own link. Either of you can return to this message to resu
   useEffect(() => {
     if (remoteGameId && gameMode === 'remote') {
       const interval = setInterval(() => {
-        fetch(`http://localhost:3001/api/games/${remoteGameId}`)
+        fetch(`${API_BASE_URL}/api/games/${remoteGameId}`)
           .then(response => response.json())
           .then(result => {
             if (result.success) {
@@ -766,7 +767,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                  return die.value;
                });
               
-              fetch(`http://localhost:3001/api/games/${remoteGameId}/roll`, {
+              fetch(`${API_BASE_URL}/api/games/${remoteGameId}/roll`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -817,7 +818,7 @@ Be sure to click your own link. Either of you can return to this message to resu
   const toggleDieHold = (index: number) => {
     // For remote games, send toggle action to server
     if (isJoiningRemoteGame || remoteGameId) {
-      fetch(`http://localhost:3001/api/games/${remoteGameId}/toggle-hold`, {
+      fetch(`${API_BASE_URL}/api/games/${remoteGameId}/toggle-hold`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -878,7 +879,7 @@ Be sure to click your own link. Either of you can return to this message to resu
   const scoreCategory = (category: ScoringCategory) => {
     // For remote games, send score action to server
     if (isJoiningRemoteGame || remoteGameId) {
-      fetch(`http://localhost:3001/api/games/${remoteGameId}/score`, {
+      fetch(`${API_BASE_URL}/api/games/${remoteGameId}/score`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -946,7 +947,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     
     // For remote games, send play again action to server
     if (isJoiningRemoteGame || remoteGameId) {
-      fetch(`http://localhost:3001/api/games/${remoteGameId}/play-again`, {
+      fetch(`${API_BASE_URL}/api/games/${remoteGameId}/play-again`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
