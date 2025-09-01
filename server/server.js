@@ -30,7 +30,7 @@ app.use((req, res, next) => {
 });
 
 // Initialize database manager
-const dbManager = new DatabaseManager();
+const dbManager = new DatabaseManager(config.dbPath);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
