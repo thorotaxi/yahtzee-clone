@@ -352,6 +352,8 @@ function App() {
                     $
                   </span>
                   <input
+                    id="custom-tip-amount"
+                    name="custom-tip-amount"
                     type="number"
                     value={customAmount}
                     onChange={(e) => {
@@ -1280,21 +1282,26 @@ Be sure to click your own link. Either of you can return to this message to resu
                 </p>
                 
                 <div style={{ marginBottom: '2rem' }}>
-                  <label style={{ 
-                    display: 'block',
-                    fontWeight: '500',
-                    marginBottom: '0.5rem',
-                    fontSize: '1rem'
-                  }}>
+                  <label 
+                    htmlFor="remote-player-name"
+                    style={{ 
+                      display: 'block',
+                      fontWeight: '500',
+                      marginBottom: '0.5rem',
+                      fontSize: '1rem'
+                    }}
+                  >
                     Your Name:
                   </label>
                   <input
+                    id="remote-player-name"
+                    name="remote-player-name"
                     type="text"
                     value={playerNames[0] || ''}
-                                         onChange={(e) => {
-                       handlePlayerNameChange(0, e.target.value);
-                       if (nameError) setNameError(null);
-                     }}
+                    onChange={(e) => {
+                      handlePlayerNameChange(0, e.target.value);
+                      if (nameError) setNameError(null);
+                    }}
                     style={{ 
                       width: '100%',
                       padding: '0.75rem',
@@ -1305,8 +1312,8 @@ Be sure to click your own link. Either of you can return to this message to resu
                       backgroundColor: 'white',
                       color: '#1f2937'
                     }}
-                                         placeholder="Enter your name"
-                   />
+                    placeholder="Enter your name"
+                  />
                    {nameError && (
                      <div style={{
                        color: '#ef4444',
@@ -1584,20 +1591,25 @@ Be sure to click your own link. Either of you can return to this message to resu
                     gap: '1rem',
                     flexWrap: 'wrap'
                   }}>
-                    <label style={{ 
-                      fontWeight: '500',
-                      minWidth: '80px',
-                      fontFamily: '"Georgia", "Times New Roman", serif'
-                    }}>
+                    <label 
+                      htmlFor={`player-name-${i}`}
+                      style={{ 
+                        fontWeight: '500',
+                        minWidth: '80px',
+                        fontFamily: '"Georgia", "Times New Roman", serif'
+                      }}
+                    >
                       {gameMode === 'remote' ? 'Your Name:' : `Player ${i + 1}:`}
                     </label>
                     <input
+                      id={`player-name-${i}`}
+                      name={`player-name-${i}`}
                       type="text"
                       value={playerNames[i] || ''}
-                                             onChange={(e) => {
-                         handlePlayerNameChange(i, e.target.value);
-                         if (gameMode === 'remote' && i === 0 && nameError) setNameError(null);
-                       }}
+                      onChange={(e) => {
+                        handlePlayerNameChange(i, e.target.value);
+                        if (gameMode === 'remote' && i === 0 && nameError) setNameError(null);
+                      }}
                       style={{ 
                         flex: 1,
                         padding: '0.5rem',
@@ -1606,8 +1618,8 @@ Be sure to click your own link. Either of you can return to this message to resu
                         fontSize: '1rem',
                         fontFamily: '"Georgia", "Times New Roman", serif'
                       }}
-                                             placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
-                     />
+                      placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
+                    />
                      {gameMode === 'remote' && i === 0 && nameError && (
                        <div style={{
                          color: '#ef4444',

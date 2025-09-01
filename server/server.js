@@ -7,12 +7,33 @@ import config from './config.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Security: Remove X-Powered-By header
+app.disable('x-powered-by');
+
 // Middleware
 app.use(cors({
   origin: config.corsOrigins,
   credentials: true
 }));
 app.use(express.json());
+
+// Security headers middleware
+app.use((req, res, next) => {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Cache control for API endpoints
+  if (req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  
+  next();
+});
 
 // Initialize database manager
 const dbManager = new DatabaseManager();
