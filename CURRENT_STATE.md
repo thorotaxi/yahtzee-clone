@@ -123,7 +123,7 @@ CREATE TABLE score_cards (
 
 ## 🚀 **Deployment Readiness**
 
-### **Current Status**: ✅ **DEPLOYED - v1.0.2 LIVE**
+### **Current Status**: ✅ **DEPLOYED - v1.0.3 LIVE**
 
 ### **What's Working**
 - ✅ All game features functional
@@ -182,9 +182,10 @@ yahtzee-clone/
 ## 🔄 **Git Repository Status**
 
 ### **Current Branch**: `main`
-### **Last Commit**: Latest v1.0.2 deployment
-### **Working Tree**: Clean (no uncommitted changes)
-### **Version**: v1.0.2
+### **Last Commit**: Latest v1.0.3 deployment
+### **Working Tree**: Has uncommitted changes (v1.0.3 updates)
+### **Version**: v1.0.3
+### **Git Status**: Files modified but not yet committed due to terminal pager issues
 ### **Files to Track**:
 - ✅ All source code files
 - ✅ Package configuration files
@@ -203,7 +204,7 @@ server.log
 *.sqlite3
 ```
 
-## 🎯 **Recent Work Completed (v1.0.2)**
+## 🎯 **Recent Work Completed (v1.0.3)**
 
 ### **Major Features Added**
 1. **Remote Multiplayer**: Full implementation with invite links
@@ -215,13 +216,25 @@ server.log
 7. **Game Numbering**: Proper increment for remote games (Game 1 → Game 2 → Game 3)
 8. **Previous Game Notifications**: Complete score display for both players after "Play Again"
 
-### **v1.0.2 Enhancements**
-1. **Mobile Responsiveness**: Reduced button padding by 50%, responsive font sizing
-2. **Layout Optimization**: Eliminated white margins, extended green background to edges
-3. **Spacing Improvements**: Tightened margins throughout all screens
-4. **Button Text Updates**: Changed "Challenge Your Friend" to "Challenge a Friend"
-5. **Minimum Width**: Set 480px minimum width to prevent layout rearrangement
-6. **Code Quality**: Fixed ESLint errors, added useCallback hooks, resolved merge conflicts
+### **v1.0.3 Enhancements**
+1. **UI Layout Improvements**: 
+   - Removed "Rolls" heading above dice section
+   - Moved "Rolls remaining:" counter to replace the heading
+   - Reduced dice size by 20% and brought them closer together
+   - Changed outer container minimum width from 480px to 400px everywhere
+2. **Header Updates**:
+   - Changed "Yahtzee Challenge" to "Challenge" on waiting/joining screens
+   - Changed "Local Game" button to "Local"
+3. **Page Title**: Updated from "Vite + React + TS" to "Yahtzee!" everywhere
+4. **Notification Improvements**:
+   - Removed friend join notification ("Successfully joined the game as [friendName]! You go first.")
+   - Enhanced challenge game notification with custom header "Invite copied to clipboard"
+   - Added support for custom notification headers throughout the system
+5. **Mobile Responsiveness**: Reduced button padding by 50%, responsive font sizing
+6. **Layout Optimization**: Eliminated white margins, extended green background to edges
+7. **Spacing Improvements**: Tightened margins throughout all screens
+8. **Button Text Updates**: Changed "Challenge Your Friend" to "Challenge a Friend"
+9. **Code Quality**: Fixed ESLint errors, added useCallback hooks, resolved merge conflicts
 
 ### **Bugs Fixed**
 1. **Game State Persistence**: Page refresh now works correctly
@@ -265,6 +278,12 @@ server.log
 
 ## 📋 **Next Steps & Future Work**
 
+### **Immediate (Required)**
+1. **Git Operations**: Need to commit and push v1.0.3 changes to GitHub
+   - Files modified: `src/App.tsx`, `index.html`, `deployment/frontend/index.html`
+   - Commit message: "v1.0.3: UI improvements and layout updates"
+   - Push to origin/main
+
 ### **Immediate (Optional)**
 1. **Fix Browser Console Issues**: Add security headers, optimize cache control
 2. **Performance Monitoring**: Monitor production performance
@@ -300,8 +319,8 @@ server.log
 
 ### **Development Notes**
 - **Last Updated**: December 2024
-- **Status**: ✅ **LIVE AND DEPLOYED - v1.0.2**
-- **Key Features**: Local/remote multiplayer Yahtzee with enhanced mobile responsiveness
+- **Status**: ✅ **LIVE AND DEPLOYED - v1.0.3**
+- **Key Features**: Local/remote multiplayer Yahtzee with enhanced mobile responsiveness and improved UI layout
 - **Tech Stack**: React/TypeScript + Node.js/Express + SQLite
 - **Deployment**: Vercel (frontend) + Railway (backend)
 
@@ -312,6 +331,6 @@ server.log
 
 ---
 
-**The Yahtzee Clone v1.0.2 is successfully deployed and live!** 🚀🎉
+**The Yahtzee Clone v1.0.3 is successfully deployed and live!** 🚀🎉
 
 **All major improvements completed and deployed to production.**

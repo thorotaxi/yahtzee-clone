@@ -53,11 +53,12 @@ function App() {
     type: 'success' | 'error' | 'info';
     message: string;
     duration?: number;
+    customHeader?: string;
   }>>([]);
 
-  const addNotification = (type: 'success' | 'error' | 'info', message: string, duration: number = 5000) => {
+  const addNotification = (type: 'success' | 'error' | 'info', message: string, duration: number = 5000, customHeader?: string) => {
     const id = Math.random().toString(36).substr(2, 9);
-    const newNotification = { id, type, message, duration };
+    const newNotification = { id, type, message, duration, customHeader };
     setNotifications(prev => [...prev, newNotification]);
     
     if (duration > 0) {
@@ -122,8 +123,8 @@ function App() {
                 marginBottom: '0.25rem',
                 fontSize: '1rem'
               }}>
-                {notification.type === 'success' ? '✅ Success' : 
-                 notification.type === 'error' ? '❌ Error' : 'ℹ️ Info'}
+                {notification.customHeader || (notification.type === 'success' ? '✅ Success' : 
+                 notification.type === 'error' ? '❌ Error' : 'ℹ️ Info')}
               </div>
               <div>{notification.message}</div>
             </div>
@@ -501,8 +502,6 @@ function App() {
       setIsRolling(false);
       setRollingDice([]);
 
-      addNotification('success', `Successfully joined the game as ${friendName}! You go first.`);
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       addNotification('error', `Failed to join the game: ${errorMessage}`);
@@ -582,9 +581,7 @@ Be sure to click your own link. Either of you can return to this message to resu
           setRemotePlayerType('creator');
           setIsJoiningRemoteGame(true);
           
-          addNotification('success', `Remote game created! The invite text has been copied to your clipboard. You can paste it into a text message or email to your friend.
-
- The invite contains one link for your friend and one for you (in case you leave and want to return later).`, 0);
+          addNotification('success', `The invite contains one link for your friend and one for you (in case you leave and want to return later).`, 0, 'Invite copied to clipboard');
         }).catch(() => {
           // Fallback if clipboard API fails
           addNotification('error', 'Clipboard access failed. Please copy the invite text manually.');
@@ -1120,7 +1117,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
-        minWidth: '480px',
+        minWidth: '400px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '2rem',
@@ -1136,7 +1133,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: '"Georgia", "Times New Roman", serif'
                       }}>
-            🎲 Yahtzee Challenge
+            🎲 Challenge
           </h1>
 
           {/* Previous Game Result Notification (Remote Mode Only) - Displayed in remote game joining screen */}
@@ -1368,7 +1365,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
-        minWidth: '480px',
+        minWidth: '400px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '0',
@@ -1515,7 +1512,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                     fontFamily: '"Georgia", "Times New Roman", serif'
                   }}
                 >
-                  🏠 Local Game
+                  🏠 Local
                 </button>
                 <button
                   onClick={() => handleGameModeChange('remote')}
@@ -1692,7 +1689,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
-        minWidth: '480px',
+        minWidth: '400px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '1.5rem',
@@ -1954,7 +1951,7 @@ Be sure to click your own link. Either of you can return to this message to resu
   return (
     <div style={{ 
       minHeight: '100vh', 
-      minWidth: '480px',
+      minWidth: '400px',
       background: 'linear-gradient(to bottom, #15803d, #14532d)', 
       color: 'white', 
       padding: '0',
@@ -2100,7 +2097,6 @@ Be sure to click your own link. Either of you can return to this message to resu
               gap: '0.5rem'
             }}>
               <div style={{ fontSize: '1rem', fontWeight: '600' }}>Turn: {gameState.currentTurn}/13</div>
-              <div style={{ fontSize: '1rem', fontWeight: '600' }}>Rolls: {gameState.rollsLeft}</div>
               <div style={{ 
                 fontSize: '1.125rem', 
                 fontWeight: 'bold', 
@@ -2114,19 +2110,18 @@ Be sure to click your own link. Either of you can return to this message to resu
               </div>
             </div>
             
-            <h2 style={{ 
-              fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', 
-              fontWeight: 'bold', 
-              marginBottom: '0.75rem', 
+            <div style={{ 
               textAlign: 'center', 
-              color: '#fbbf24',
-              fontFamily: '"Georgia", "Times New Roman", serif'
+              marginBottom: '0.75rem',
+              fontSize: '1rem', 
+              fontWeight: '600',
+              color: '#fbbf24'
             }}>
-              🎲 Dice 🎲
-            </h2>
+              Rolls remaining: {gameState.rollsLeft}
+            </div>
             <div style={{ 
               display: 'flex', 
-              gap: '1rem', 
+              gap: '0.75rem', 
               justifyContent: 'center', 
               marginBottom: '1rem',
               flexWrap: 'nowrap',
@@ -2151,8 +2146,8 @@ Be sure to click your own link. Either of you can return to this message to resu
                     }
                   }}
                   style={{
-                    width: '3.5rem',
-                    height: '3.5rem',
+                    width: '2.8rem',
+                    height: '2.8rem',
                     backgroundColor: die.isHeld ? '#fef3c7' : 'white',
                     borderRadius: '0.5rem',
                     display: 'flex',
@@ -2183,8 +2178,8 @@ Be sure to click your own link. Either of you can return to this message to resu
                     fontFamily: '"Georgia", "Times New Roman", serif',
                     position: 'relative',
                     animation: rollingDice.includes(index) ? 'roll 0.1s ease-in-out infinite' : 'none',
-                    minWidth: '3rem',
-                    minHeight: '3rem'
+                    minWidth: '2.4rem',
+                    minHeight: '2.4rem'
                   }}
                 >
                   {gameState.rollsLeft === 3 && die.value === 1 ? (
