@@ -1117,7 +1117,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
-        minWidth: '400px',
+        minWidth: '350px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '2rem',
@@ -1689,7 +1689,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
-        minWidth: '400px',
+        minWidth: '350px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '1.5rem',
@@ -2084,7 +2084,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             border: '1px solid rgba(255,255,255,0.2)',
             boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
             height: 'fit-content',
-            flex: '0 0 400px',
+            flex: '0 0 350px',
             minWidth: '350px'
           }}>
             {/* Game Status */}
@@ -2365,7 +2365,7 @@ Be sure to click your own link. Either of you can return to this message to resu
           <div style={{ 
             display: 'grid', 
             gap: '1rem',
-            flex: '1 1 400px',
+            flex: '1 1 350px',
             minWidth: '300px'
           }}>
             {gameState.players.map((player, playerIndex) => {
