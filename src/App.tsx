@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import type { GameState, Die, ScoringCategory, Player } from './types'
 import { LocalGameEngine } from './game/LocalGameEngine'
@@ -231,7 +231,7 @@ function App() {
                 style={{
                   backgroundColor: '#fbbf24',
                   color: '#1f2937',
-                  padding: '0.75rem 1.5rem',
+                  padding: '0.375rem 0.75rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
                   fontSize: '1rem',
@@ -258,7 +258,7 @@ function App() {
               style={{
                 backgroundColor: '#6b7280',
                 color: 'white',
-                padding: '0.75rem 1.5rem',
+                padding: '0.375rem 0.75rem',
                 borderRadius: '0.5rem',
                 fontWeight: '600',
                 fontSize: '1rem',
@@ -409,7 +409,7 @@ function App() {
                   style={{
                     backgroundColor: '#6b7280',
                     color: 'white',
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.375rem 0.75rem',
                     borderRadius: '0.5rem',
                     fontWeight: '600',
                     fontSize: '1rem',
@@ -435,7 +435,7 @@ function App() {
                   style={{
                     backgroundColor: '#fbbf24',
                     color: '#1f2937',
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.375rem 0.75rem',
                     borderRadius: '0.5rem',
                     fontWeight: '600',
                     fontSize: '1rem',
@@ -603,7 +603,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return 'game_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
   };
   // Fetch remote game history
-  const fetchRemoteGameHistory = async (gameId: string) => {
+  const fetchRemoteGameHistory = useCallback(async (gameId: string) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/games/${gameId}/history`);
       const result = await response.json();
@@ -613,7 +613,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     } catch (error) {
       console.error('Error fetching game history:', error);
     }
-  };
+  }, []);
   // Check for URL parameters on app load
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -681,7 +681,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             if (result.success) {
               // Check if this is a new game (detected by checking if currentTurn is 1 and rollsLeft is 3)
               // const isNewGame = result.gameState.currentTurn === 1 && result.gameState.rollsLeft === 3 && 
-                               !result.gameState.gameComplete && result.gameState.gameStarted;
+              //                  !result.gameState.gameComplete && result.gameState.gameStarted;
               
               // Check if the game state contains a previous game result (for both players)
               if (result.gameState.previousGameResult && !previousGameResult) {
@@ -691,7 +691,8 @@ Be sure to click your own link. Either of you can return to this message to resu
               // Clear previousGameResult from game state after it's been set locally
               if (result.gameState.previousGameResult && previousGameResult) {
                 // Remove the previousGameResult from the game state to prevent it from persisting
-                const { previousGameResult: _, ...gameStateWithoutPrevious } = result.gameState;
+                const gameStateWithoutPrevious = { ...result.gameState };
+                delete gameStateWithoutPrevious.previousGameResult;
                 setGameState(gameStateWithoutPrevious);
               } else {
                 // Update game state if it has changed
@@ -711,13 +712,13 @@ Be sure to click your own link. Either of you can return to this message to resu
 
       return () => clearInterval(interval);
     }
-  }, [remoteGameId, gameMode, isJoiningRemoteGame]);
+  }, [remoteGameId, gameMode, isJoiningRemoteGame, previousGameResult]);
   // Fetch remote game history when game is complete
   useEffect(() => {
     if (remoteGameId && gameState.gameComplete) {
       fetchRemoteGameHistory(remoteGameId);
     }
-  }, [remoteGameId, gameState.gameComplete]);
+  }, [remoteGameId, gameState.gameComplete, fetchRemoteGameHistory]);
   // Roll the dice (only unheld dice)
   const rollDice = async () => {
     if (gameState.rollsLeft > 0 && !isRolling) {
@@ -1119,6 +1120,7 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
+        minWidth: '480px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
         padding: '2rem',
@@ -1307,7 +1309,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                       padding: '0.75rem',
                       borderRadius: '0.5rem',
                       border: '1px solid #d1d5db',
-                      fontSize: '1rem',
+                      fontSize: 'clamp(0.875rem, 2.5vw, 1rem)',
                       fontFamily: '"Georgia", "Times New Roman", serif',
                       backgroundColor: 'white',
                       color: '#1f2937'
@@ -1331,7 +1333,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                     onClick={() => joinRemoteGame(playerNames[0])}
                     style={{ 
                       backgroundColor: '#fbbf24',
-                      padding: '1rem 2rem',
+                      padding: '0.5rem 1rem',
                       borderRadius: '0.5rem',
                       fontWeight: '600',
                       fontSize: '1.25rem',
@@ -1366,17 +1368,18 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
+        minWidth: '480px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
-        padding: '2rem',
+        padding: '0',
         fontFamily: '"Georgia", "Times New Roman", serif'
       }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <h1 style={{ 
-            fontSize: '3rem', 
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0' }}>
+                      <h1 style={{ 
+            fontSize: 'clamp(2rem, 6vw, 3rem)', 
             fontWeight: 'bold', 
             textAlign: 'center', 
-            marginBottom: '2rem', 
+            marginBottom: '1rem', 
             color: '#fbbf24',
             textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: '"Georgia", "Times New Roman", serif'
@@ -1388,7 +1391,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             {previousGameResult && gameMode === 'remote' && (
               <div style={{
                 width: '100%',
-                marginBottom: '2rem',
+                marginBottom: '1rem',
                 padding: '1.25rem',
                 backgroundColor: 'rgba(251, 191, 36, 0.15)',
                 borderRadius: '0.75rem',
@@ -1461,15 +1464,15 @@ Be sure to click your own link. Either of you can return to this message to resu
 
             <div style={{ 
             backgroundColor: 'rgba(255,255,255,0.1)', 
-            padding: '2rem', 
+            padding: '1.5rem', 
             borderRadius: '0.75rem',
             border: '1px solid rgba(255,255,255,0.2)',
             boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
           }}>
             <h2 style={{ 
-              fontSize: '2rem', 
+              fontSize: 'clamp(1.5rem, 4vw, 2rem)', 
               fontWeight: 'bold', 
-              marginBottom: '1.5rem', 
+              marginBottom: '1rem', 
               textAlign: 'center',
               color: '#fbbf24',
               fontFamily: '"Georgia", "Times New Roman", serif'
@@ -1480,7 +1483,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             {/* Error Message for Invalid Game Links */}
             {gameLinkError && (
               <div style={{
-                marginBottom: '2rem',
+                marginBottom: '1rem',
                 textAlign: 'center'
               }}>
                 <p style={{
@@ -1495,12 +1498,12 @@ Be sure to click your own link. Either of you can return to this message to resu
             )}
 
             {/* Game Mode Selection */}
-            <div style={{ marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => handleGameModeChange('local')}
                   style={{ 
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.375rem 0.75rem',
                     borderRadius: '0.5rem',
                     fontWeight: '600',
                     fontSize: '1.125rem',
@@ -1517,7 +1520,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                 <button
                   onClick={() => handleGameModeChange('remote')}
                   style={{ 
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.375rem 0.75rem',
                     borderRadius: '0.5rem',
                     fontWeight: '600',
                     fontSize: '1.125rem',
@@ -1529,7 +1532,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                     fontFamily: '"Georgia", "Times New Roman", serif'
                   }}
                 >
-                  🌐 Challenge Your Friend
+                  🌐 Challenge a Friend
                 </button>
               </div>
               {gameMode === 'remote' && (
@@ -1547,7 +1550,7 @@ Be sure to click your own link. Either of you can return to this message to resu
 
             {/* Player Count Selection - Only for Local Mode */}
             {gameMode === 'local' && (
-              <div style={{ marginBottom: '2rem' }}>
+              <div style={{ marginBottom: '1rem' }}>
                 <h3 style={{ 
                   fontSize: '1.25rem', 
                   fontWeight: 'bold', 
@@ -1556,13 +1559,13 @@ Be sure to click your own link. Either of you can return to this message to resu
                 }}>
                   Number of Players:
                 </h3>
-                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                   {[1, 2, 3, 4, 5, 6].map(count => (
                     <button
                       key={count}
                       onClick={() => handlePlayerCountChange(count)}
                       style={{ 
-                        padding: '0.75rem 1.5rem',
+                        padding: '0.375rem 0.75rem',
                         borderRadius: '0.5rem',
                         fontWeight: '600',
                         fontSize: '1.125rem',
@@ -1582,7 +1585,7 @@ Be sure to click your own link. Either of you can return to this message to resu
             )}
 
             {/* Player Names */}
-            <div style={{ marginBottom: '2rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <div style={{ display: 'grid', gap: '1rem' }}>
                 {Array.from({ length: playerCount }, (_, i) => (
                   <div key={i} style={{ 
@@ -1595,8 +1598,9 @@ Be sure to click your own link. Either of you can return to this message to resu
                       htmlFor={`player-name-${i}`}
                       style={{ 
                         fontWeight: '500',
-                        minWidth: '80px',
-                        fontFamily: '"Georgia", "Times New Roman", serif'
+                        minWidth: 'clamp(60px, 15vw, 80px)',
+                        fontFamily: '"Georgia", "Times New Roman", serif',
+                        fontSize: 'clamp(0.875rem, 2.5vw, 1rem)'
                       }}
                     >
                       {gameMode === 'remote' ? 'Your Name:' : `Player ${i + 1}:`}
@@ -1615,8 +1619,9 @@ Be sure to click your own link. Either of you can return to this message to resu
                         padding: '0.5rem',
                         borderRadius: '0.25rem',
                         border: '1px solid #d1d5db',
-                        fontSize: '1rem',
-                        fontFamily: '"Georgia", "Times New Roman", serif'
+                        fontSize: 'clamp(0.875rem, 2.5vw, 1rem)',
+                        fontFamily: '"Georgia", "Times New Roman", serif',
+                        minWidth: '120px'
                       }}
                       placeholder={gameMode === 'remote' ? 'Enter your name' : `Player ${i + 1}`}
                     />
@@ -1652,7 +1657,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                 onClick={startGame}
                 style={{ 
                   backgroundColor: '#fbbf24',
-                  padding: '1rem 2rem',
+                  padding: '0.5rem 1rem',
                   borderRadius: '0.5rem',
                   fontWeight: '600',
                   fontSize: '1.25rem',
@@ -1687,17 +1692,18 @@ Be sure to click your own link. Either of you can return to this message to resu
     return (
       <div style={{ 
         minHeight: '100vh', 
+        minWidth: '480px',
         background: 'linear-gradient(to bottom, #15803d, #14532d)', 
         color: 'white', 
-        padding: '2rem',
+        padding: '1.5rem',
         fontFamily: '"Georgia", "Times New Roman", serif'
       }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <h1 style={{ 
-            fontSize: '3rem', 
+            fontSize: 'clamp(2rem, 6vw, 3rem)', 
             fontWeight: 'bold', 
             textAlign: 'center', 
-            marginBottom: '2rem', 
+            marginBottom: '1.5rem', 
             color: '#fbbf24',
             textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
             fontFamily: '"Georgia", "Times New Roman", serif'
@@ -1707,15 +1713,15 @@ Be sure to click your own link. Either of you can return to this message to resu
 
           <div style={{ 
             backgroundColor: 'rgba(255,255,255,0.1)', 
-            padding: '2rem', 
+            padding: '1.5rem', 
             borderRadius: '0.75rem',
             border: '1px solid rgba(255,255,255,0.2)',
             boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
           }}>
             <h2 style={{ 
-              fontSize: '2rem', 
+              fontSize: 'clamp(1.5rem, 4vw, 2rem)', 
               fontWeight: 'bold', 
-              marginBottom: '1.5rem', 
+              marginBottom: '1rem', 
               textAlign: 'center',
               color: '#fbbf24',
               fontFamily: '"Georgia", "Times New Roman", serif'
@@ -1723,11 +1729,11 @@ Be sure to click your own link. Either of you can return to this message to resu
               🎉 {winner?.name || 'Game Complete'} 🎉
             </h2>
 
-            <div style={{ marginBottom: '2rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
               <h3 style={{ 
-                fontSize: '1.5rem', 
+                fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', 
                 fontWeight: 'bold', 
-                marginBottom: '1rem',
+                marginBottom: '0.75rem',
                 textAlign: 'center',
                 fontFamily: '"Georgia", "Times New Roman", serif'
               }}>
@@ -1770,7 +1776,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                 backgroundColor: 'rgba(251, 191, 36, 0.1)', 
                 padding: '1.5rem', 
                 borderRadius: '0.5rem', 
-                marginBottom: '3rem',
+                marginBottom: '2rem',
                 border: '1px solid rgba(251, 191, 36, 0.3)'
               }}>
                 <h3 style={{ 
@@ -1807,11 +1813,11 @@ Be sure to click your own link. Either of you can return to this message to resu
                          {/* Remote Game History */}
              {gameMode === 'remote' && remoteGameHistory.length > 0 && (
                <div style={{
-                 marginTop: '2rem',
+                 marginTop: '1.5rem',
                  padding: '1.5rem',
                  backgroundColor: 'rgba(251, 191, 36, 0.1)',
                  borderRadius: '0.75rem',
-                 marginBottom: '3rem',
+                 marginBottom: '2rem',
                  border: '1px solid rgba(251, 191, 36, 0.3)'
                }}>
                  <h3 style={{
@@ -1948,21 +1954,22 @@ Be sure to click your own link. Either of you can return to this message to resu
   return (
     <div style={{ 
       minHeight: '100vh', 
+      minWidth: '480px',
       background: 'linear-gradient(to bottom, #15803d, #14532d)', 
       color: 'white', 
-      padding: '2rem',
+      padding: '0',
       fontFamily: '"Georgia", "Times New Roman", serif'
     }}>
       <div style={{ 
         maxWidth: '1400px', 
         margin: '0 auto',
-        padding: '0 1rem'
+        padding: '0'
       }}>
         <h1 style={{ 
-          fontSize: '3rem', 
+          fontSize: 'clamp(2rem, 6vw, 3rem)', 
           fontWeight: 'bold', 
           textAlign: 'center', 
-          marginBottom: '2rem', 
+          marginBottom: '1rem', 
           color: '#fbbf24',
           textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
           fontFamily: '"Georgia", "Times New Roman", serif'
@@ -2067,7 +2074,7 @@ Be sure to click your own link. Either of you can return to this message to resu
         <div style={{ 
           display: 'flex', 
           flexDirection: 'row',
-          gap: '2rem',
+          gap: '1.5rem',
           flexWrap: 'wrap',
           justifyContent: 'center',
           alignItems: 'flex-start'
@@ -2075,7 +2082,7 @@ Be sure to click your own link. Either of you can return to this message to resu
           {/* Dice Display */}
           <div style={{ 
             backgroundColor: 'rgba(255,255,255,0.1)', 
-            padding: '2rem', 
+            padding: '1.5rem', 
             borderRadius: '0.75rem',
             border: '1px solid rgba(255,255,255,0.2)',
             boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
@@ -2088,7 +2095,7 @@ Be sure to click your own link. Either of you can return to this message to resu
               display: 'flex', 
               justifyContent: 'space-between', 
               alignItems: 'center',
-              marginBottom: '1.5rem',
+              marginBottom: '1rem',
               flexWrap: 'wrap',
               gap: '0.5rem'
             }}>
@@ -2108,9 +2115,9 @@ Be sure to click your own link. Either of you can return to this message to resu
             </div>
             
             <h2 style={{ 
-              fontSize: '1.5rem', 
+              fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', 
               fontWeight: 'bold', 
-              marginBottom: '1rem', 
+              marginBottom: '0.75rem', 
               textAlign: 'center', 
               color: '#fbbf24',
               fontFamily: '"Georgia", "Times New Roman", serif'
@@ -2269,7 +2276,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                       disabled={gameState.rollsLeft === 0 || isRolling}
                       style={{ 
                         backgroundColor: (gameState.rollsLeft === 0 || isRolling) ? '#6b7280' : '#fbbf24',
-                        padding: '0.75rem 1.5rem',
+                        padding: '0.5rem 1rem',
                         borderRadius: '0.5rem',
                         fontWeight: '600',
                         fontSize: '1.125rem',
@@ -2405,7 +2412,7 @@ Be sure to click your own link. Either of you can return to this message to resu
                               <div key={displayPlayer.id} style={{ 
                   backgroundColor: '#fef3c7', 
                   color: '#1f2937', 
-                  padding: '1.5rem', 
+                  padding: '1.25rem', 
                   borderRadius: '0.75rem', 
                   boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
                   border: isActivePlayer ? '4px solid #fbbf24' : '4px solid #f59e0b',
@@ -2415,12 +2422,12 @@ Be sure to click your own link. Either of you can return to this message to resu
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center', 
-                    marginBottom: '1rem',
+                    marginBottom: '0.75rem',
                     paddingBottom: '0.5rem',
                     borderBottom: '2px solid #f59e0b'
                   }}>
                     <h3 style={{ 
-                      fontSize: '1.5rem', 
+                      fontSize: 'clamp(1.25rem, 3vw, 1.5rem)', 
                       fontWeight: 'bold', 
                       color: '#92400e',
                       fontFamily: '"Georgia", "Times New Roman", serif'
@@ -2446,9 +2453,9 @@ Be sure to click your own link. Either of you can return to this message to resu
                   {/* Upper Section */}
                   <div>
                     <h4 style={{ 
-                      fontSize: '1rem', 
+                      fontSize: 'clamp(0.875rem, 2.5vw, 1rem)', 
                       fontWeight: 'bold', 
-                      marginBottom: '0.5rem', 
+                      marginBottom: '0.375rem', 
                       color: '#92400e',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
@@ -2610,9 +2617,9 @@ Be sure to click your own link. Either of you can return to this message to resu
                   {/* Lower Section */}
                   <div>
                     <h4 style={{ 
-                      fontSize: '1rem', 
+                      fontSize: 'clamp(0.875rem, 2.5vw, 1rem)', 
                       fontWeight: 'bold', 
-                      marginBottom: '0.5rem', 
+                      marginBottom: '0.375rem', 
                       color: '#92400e',
                       fontFamily: '"Georgia", "Times New Roman", serif'
                     }}>
