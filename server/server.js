@@ -15,16 +15,73 @@ app.use(cors({
   origin: config.corsOrigins,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // Limit request body size
 
 // Security headers middleware
 app.use((req, res, next) => {
   // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   
-  // Cache control for all endpoints (API and game actions)
-  res.setHeader('Cache-Control', 'no-cache, no-store');
+  // Smart cache control based on endpoint type
+  if (req.path === '/health') {
+    // Health check can be cached briefly
+    res.setHeader('Cache-Control', 'public, max-age=30');
+  } else if (req.path.startsWith('/api/games/') && req.method === 'GET') {
+    // Game state and history endpoints - no-cache but allow storage for performance
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  } else if (req.path === '/api/games' && req.method === 'POST') {
+    // Game creation - no caching needed
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  } else if (req.path.startsWith('/api/games/') && req.method === 'POST') {
+    // Game actions (roll, score, etc.) - no caching
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  } else if (req.path.startsWith('/api/games/') && req.method === 'PUT') {
+    // Game updates - no caching
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  } else if (req.path.startsWith('/api/games/') && req.method === 'DELETE') {
+    // Game cleanup - no caching
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  } else {
+    // Default for any other endpoints - no caching
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+  }
+  
+  next();
+});
+
+// Basic rate limiting (simple in-memory store)
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 100; // 100 requests per minute per IP
+
+// Rate limiting middleware
+app.use((req, res, next) => {
+  const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  
+  if (!requestCounts.has(clientIP)) {
+    requestCounts.set(clientIP, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+  } else {
+    const clientData = requestCounts.get(clientIP);
+    if (now > clientData.resetTime) {
+      clientData.count = 1;
+      clientData.resetTime = now + RATE_LIMIT_WINDOW;
+    } else {
+      clientData.count++;
+    }
+    
+    if (clientData.count > MAX_REQUESTS_PER_WINDOW) {
+      return res.status(429).json({ 
+        error: 'Too many requests', 
+        message: 'Rate limit exceeded. Please try again later.' 
+      });
+    }
+  }
   
   next();
 });
