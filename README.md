@@ -1,4 +1,4 @@
-# 🎲 Yahtzee Clone
+# 🎲 Yahtzee Clone v1.0.2
 
 A modern, responsive Yahtzee game built with React, TypeScript, and Node.js. Features a beautiful UI with smooth animations, official Yahtzee rules including bonus and joker scoring, and support for both local (1-6 players) and remote multiplayer modes.
 
